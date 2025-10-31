@@ -372,7 +372,7 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		44DBC5062AF0AC9600022F30 /* XCRemoteSwiftPackageReference "verify-sdk-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ibm-verify/verify-sdk-ios.git";
+			repositoryURL = "https://github.com/ibm-verify/verify-mobile-ios.git";
 			requirement = {
 				branch = develop;
 				kind = branch;

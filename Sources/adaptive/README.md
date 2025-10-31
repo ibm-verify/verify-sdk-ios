@@ -23,7 +23,7 @@ An [example](../../Examples/adaptive) application is available for the Adaptive 
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.0.11")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-mobile-ios.git", from: "3.0.11")
 ]
 ```
 
@@ -41,7 +41,7 @@ Alternatively, you can add the package manually.
 2. Select your application project under the **PROJECT** heading
 3. Select the **Swift Packages** tab.
 4. Click on the `+` button.
-5. Enter `https://github.com/ibm-verify/verify-sdk-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
+5. Enter `https://github.com/ibm-verify/verify-mobile-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
 
 
 ### API documentation
