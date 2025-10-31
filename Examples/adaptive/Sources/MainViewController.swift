@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify Adaptive Sample App for iOS project
+// Copyright contributors to the IBM Verify Adaptive Sample App for iOS project
 //
 
 import UIKit

@@ -25,5 +25,5 @@
     "expiresIn" : 90
   },
   "accountName" : "John Doe",
-  "serviceName" : "IBM Security Verify SDK Tenant"
+  "serviceName" : "IBM Verify SDK Tenant"
 }

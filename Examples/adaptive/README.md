@@ -1,6 +1,6 @@
-# IBM Security Verify Adaptive Sample App for iOS
+# IBM Verify Adaptive Sample App for iOS
 
-The Adaptive Sample App is an end-to-end mobile app that uses IBM Security Verify to perform risk and policy evaluation.
+The Adaptive Sample App is an end-to-end mobile app that uses IBM Verify to perform risk and policy evaluation.
 
 ## Getting started
 
@@ -9,10 +9,10 @@ The resource links in the prerequisites explain and demonstrate how you create a
 ### Prerequisites
 
 - Install and configure the demo
-[Proxy SDK](https://github.com/IBM-Security/adaptive-proxy-sdk-javascript) on a Node server by running `npm install adaptive-proxy-sdk`
+[Proxy SDK](https://github.com/IBM-Verify/adaptive-proxy-sdk-javascript) on a Node server by running `npm install adaptive-proxy-sdk`
 > NOTE: Also run `npm install` in the demo folder.
 
-- Generate and download the Trusteer SDK via IBM Security Verify admin portal for the application.
+- Generate and download the Trusteer SDK via IBM Verify admin portal for the application.
 
 > See [On-board a native application](https://docs.verify.ibm.com/verify/docs/adaptive-access-sdk-adaptive-sdk-for-ios)
 

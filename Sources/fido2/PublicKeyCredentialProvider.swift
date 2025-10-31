@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify FIDO2 SDK for iOS project
+// Copyright contributors to the IBM Verify FIDO2 SDK for iOS project
 //
 
 import Foundation

@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify MFA SDK for iOS project
+// Copyright contributors to the IBM Verify MFA SDK for iOS project
 //
 
 import Foundation
@@ -10,7 +10,7 @@ import CryptoKit
 /// A type that indicates when the on-premise registration fails.
 public typealias OnPremiseRegistrationError = MFARegistrationError
 
-/// A mechanism for creating a multi-factor authenticator and associated factor enrollments for IBM Security Verify Access.
+/// A mechanism for creating a multi-factor authenticator and associated factor enrollments for IBM Verify Access.
 public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     public typealias Authenticator = OnPremiseAuthenticator
     
@@ -55,7 +55,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     /// The current factor that is being enrolled.
     private var currentFactor: SignatureEnrollableFactor!
     
-    /// The `UUID` identifier generated in IBM Security Verify Access.
+    /// The `UUID` identifier generated in IBM Verify Access.
     private var authenitcatorId: String
     
     public var accountName: String

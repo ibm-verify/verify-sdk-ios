@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify DC SDK for iOS project
+// Copyright contributors to the IBM Verify DC SDK for iOS project
 //
 
 import XCTest

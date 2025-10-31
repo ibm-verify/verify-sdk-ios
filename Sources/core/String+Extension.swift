@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify Core SDK for iOS project
+// Copyright contributors to the IBM Verify Core SDK for iOS project
 //
 import Foundation
 

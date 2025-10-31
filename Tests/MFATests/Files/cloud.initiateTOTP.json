@@ -48,7 +48,7 @@
             }
         },
         "registrationUri": "https://sdk.verify.ibm.com/v1.0/authenticators/registration",
-        "serviceName": "IBM Security Verify SDK Tenant",
+        "serviceName": "IBM Verify SDK Tenant",
         "customAttributes": {
             "privacyUri": "https://sdk.verify.ibm.com/privacy.html"
         }

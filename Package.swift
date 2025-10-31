@@ -5,7 +5,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "IBM Security Verify",
+    name: "IBM Verify",
     defaultLocalization: "en",
     platforms: [
         .iOS(.v15)

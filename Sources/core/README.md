@@ -1,6 +1,6 @@
-# IBM Security Verify Core SDK for iOS
+# IBM Verify Core SDK for iOS
 
-The Core software development kit (SDK) provides common functionality across the other components in the IBM Security Verify SDK offering.  The core component will evolve over time and currently offers extensions and helpers for `URLSession` and the Keychain.
+The Core software development kit (SDK) provides common functionality across the other components in the IBM Verify SDK offering.  The core component will evolve over time and currently offers extensions and helpers for `URLSession` and the Keychain.
 
 ## Getting started
 
@@ -10,7 +10,7 @@ The Core software development kit (SDK) provides common functionality across the
 
 ```swift
 dependencies: [
-    .package(name: "IBM Security Verify", url: "https://github.com/ibm-security-verify/verify-sdk-ios.git", from: "3.0.11")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-mobile-ios.git", from: "3.0.11")
 ]
 ```
 
@@ -19,7 +19,7 @@ then in the `targets` section of the application/library, add one or more compon
 ```swift
 // Target for Swift 5.7
 .target(name: "MyExampleApp", dependencies: [
-    .product(name: "Core", package: "IBM Security Verify")
+    .product(name: "Core", package: "IBM Verify")
 ],
 ```
 
@@ -28,10 +28,10 @@ Alternatively, you can add the package manually.
 2. Select your application project under the **PROJECT** heading
 3. Select the **Swift Packages** tab.
 4. Click on the `+` button.
-5. Enter `https://github.com/ibm-security-verify/verify-sdk-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
+5. Enter `https://github.com/ibm-verify/verify-mobile-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
 
 ### API documentation
-The Core SDK API can be reviewed [here](https://ibm-security-verify.github.io/ios/documentation/core/).
+The Core SDK API can be reviewed [here](https://ibm-verify.github.io/ios/documentation/core/).
 
 ### Importing the SDK
 

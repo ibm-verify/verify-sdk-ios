@@ -1,6 +1,6 @@
-# IBM Security Verify FIDO2™ Sample App for iOS
+# IBM Verify FIDO2™ Sample App for iOS
 
-The FIDO2 sample app is an end-to-end mobile app which uses the FIDO2 server features in IBM Security Verify Access (on-premises) and IBM Security Verify (cloud).
+The FIDO2 sample app is an end-to-end mobile app which uses the FIDO2 server features in IBM Verify Access (on-premises) and IBM Verify (cloud).
 
 ## Getting started
 
@@ -26,7 +26,7 @@ The FIDO2 sample app is an end-to-end mobile app which uses the FIDO2 server fea
 1. After opening the project in Xcode, change the **Team** selection under **Signing & Capabilities** in the **Target** list
 2. Connect your iOS mobile device
 3. Press ⌘R to run the project
-4. Tap **Get Started** under IBM Security Verify
+4. Tap **Get Started** under IBM Verify
 5. Enter your **Tenant URL**  i.e `https://sdk.verify.ibm.com`
 6. Enter the **Client ID** obtained from the tenant application configuration under the **Sign-on** tab
 7. Enter the **Username** and **Password** for a tenant user

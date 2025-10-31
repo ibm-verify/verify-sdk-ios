@@ -41,7 +41,7 @@ jobs:
 
           mkdir -p ${{ env.SYMBOL_GRAPHS_DIR }} && \
           xcodebuild docbuild \
-          -scheme "IBM Security Verify-Package" \
+          -scheme "IBM Verify-Package" \
           -destination "generic/platform=iOS" \
           -derivedDataPath ${{ env.DERIVED_DATA_DIR }}
           
@@ -57,7 +57,7 @@ jobs:
           export DOCC_HTML_DIR=$(dirname $(xcrun --find docc))/../share/docc/render
                       
           $(xcrun --find docc) convert ${{ env.DOCC_SOURCE_DIR }} \
-            --fallback-display-name "IBM Security Verify iOS SDK" \
+            --fallback-display-name "IBM Verify iOS SDK" \
             --fallback-bundle-identifier com.ibm.verify.ios.sdk \
             --fallback-bundle-version 1.0.0 \
             --additional-symbol-graph-dir ${{ env.SYMBOL_GRAPHS_DIR }}
@@ -71,19 +71,19 @@ jobs:
          
       - name: Push Github Pages
         run: |
-          git clone https://github.com/ibm-security-verify/ibm-security-verify.github.io.git
-          cd ibm-security-verify.github.io
+          git clone https://github.com/ibm-verify/ibm-verify.github.io.git
+          cd ibm-verify.github.io
           git checkout master
           cd ..
-          rm -r ibm-security-verify.github.io/ios/*
-          mkdir -p ibm-security-verify.github.io/ios/
-          cp -R ${{ env.DOCC_SOURCE_DIR }}/.docc-build/. ibm-security-verify.github.io/ios
-          cd ibm-security-verify.github.io
+          rm -r ibm-verify.github.io/ios/*
+          mkdir -p ibm-verify.github.io/ios/
+          cp -R ${{ env.DOCC_SOURCE_DIR }}/.docc-build/. ibm-verify.github.io/ios
+          cd ibm-verify.github.io
           git add .
           git commit -m "[GitHub Actions] Auto-Documentation Update"
           git status
           git config --get remote.origin.url
-          git remote set-url origin https://${{ secrets.API_TOKEN_GITHUB }}@github.com/ibm-security-verify/ibm-security-verify.github.io.git
+          git remote set-url origin https://${{ secrets.API_TOKEN_GITHUB }}@github.com/ibm-verify/ibm-verify.github.io.git
           git push origin
           git config --get remote.origin.url
   job_summary:
@@ -99,7 +99,7 @@ jobs:
         run: |
           echo '## Build Summary :white_check_mark:' >> $GITHUB_STEP_SUMMARY
           echo '### Documentation' >> $GITHUB_STEP_SUMMARY
-          echo 'The documentation has been successfully created, and can be accessed [here.](https://ibm-security-verify.github.io/)' >> $GITHUB_STEP_SUMMARY
+          echo 'The documentation has been successfully created, and can be accessed [here.](https://ibm-verify.github.io/)' >> $GITHUB_STEP_SUMMARY
           echo '### Files Changed' >> $GITHUB_STEP_SUMMARY
           echo -n 'Count: '  >> $GITHUB_STEP_SUMMARY
           git diff --name-only HEAD~ | wc -l | awk '{$1=$1;print}' >> $GITHUB_STEP_SUMMARY

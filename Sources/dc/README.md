@@ -14,7 +14,7 @@ IBM Verify Identity Access enables businesses, governments, and individuals to i
 
 ```swift
 dependencies: [
-    .package(name: "IBM Security Verify", url: "https://github.com/ibm-security-verify/verify-sdk-ios.git", from: "3.0.11")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-mobile-ios.git", from: "3.0.11")
 ]
 ```
 
@@ -23,7 +23,7 @@ then in the `targets` section of the application/library, add one or more compon
 ```swift
 // Target for Swift 5.7
 .target(name: "MyExampleApp", dependencies: [
-    .product(name: "DC", package: "IBM Security Verify")
+    .product(name: "DC", package: "IBM Verify")
 ],
 ```
 
@@ -32,10 +32,10 @@ Alternatively, you can add the package manually.
 2. Select your application project under the **PROJECT** heading
 3. Select the **Swift Packages** tab.
 4. Click on the `+` button.
-5. Enter `https://github.com/ibm-security-verify/verify-sdk-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
+5. Enter `https://github.com/ibm-verify/verify-mobile-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
 
 ### API documentation
-The Digital Credentails SDK API can be reviewed [here](https://ibm-security-verify.github.io/ios/documentation/dc/).
+The Digital Credentails SDK API can be reviewed [here](https://ibm-verify.github.io/ios/documentation/dc/).
 
 ### Importing the SDK
 

@@ -1,13 +1,13 @@
 //
 //  AgentTests 2.swift
-//  IBM Security Verify
+//  IBM Verify
 //
 //  Created by Craig Pearson on 25/10/2024.
 //
 
 
 //
-// Copyright contributors to the IBM Security Verify DC SDK for iOS project
+// Copyright contributors to the IBM Verify DC SDK for iOS project
 //
 
 import XCTest

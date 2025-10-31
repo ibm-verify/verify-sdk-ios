@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify MFA SDK for iOS project
+// Copyright contributors to the IBM Verify MFA SDK for iOS project
 //
 
 import Foundation
@@ -10,7 +10,7 @@ import CryptoKit
 /// A type that indicates when the cloud registration fails.
 public typealias CloudRegistrationError = MFARegistrationError
 
-/// A mechanism for creating a multi-factor authenticator and associated factor enrollments for IBM Security Verify.
+/// A mechanism for creating a multi-factor authenticator and associated factor enrollments for IBM Verify.
 public class CloudRegistrationProvider: MFARegistrationDescriptor {
     public typealias Authenticator = CloudAuthenticator
     

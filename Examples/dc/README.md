@@ -1,6 +1,6 @@
 # IBM Verify Digital Credentials Sample App for iOS
 
-The digital credentials sample app is an end-to-end mobile app that uses features in [IBM Security Verify Access](https://www.ibm.com/au-en/products/verify-access) (on-premises) and [IBM Security Verify](https://www.ibm.com/verify/verify-identity) (cloud).
+The digital credentials sample app is an end-to-end mobile app that uses features in [IBM Verify Access](https://www.ibm.com/au-en/products/verify-access) (on-premises) and [IBM Verify](https://www.ibm.com/verify/verify-identity) (cloud).
 
 ## Getting started
 

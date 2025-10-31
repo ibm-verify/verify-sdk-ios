@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify MFA SDK for iOS project
+// Copyright contributors to the IBM Verify MFA SDK for iOS project
 //
 
 import Foundation
@@ -162,7 +162,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
     
     /// Remove the authenticator.
     ///
-    /// The `identifer` is stored within the `OnPremiseAuthenticator.token` and is set by IBM Security Verify Access mapping rules.
+    /// The `identifer` is stored within the `OnPremiseAuthenticator.token` and is set by IBM Verify Access mapping rules.
     ///
     /// See [AuthenticationPostTokenGeneration](https://www.ibm.com/docs/en/sva/10.0.1?topic=rules-mmfa-mapping-rule-methods)
     ///

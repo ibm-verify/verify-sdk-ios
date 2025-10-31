@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify MFA SDK for iOS project
+// Copyright contributors to the IBM Verify MFA SDK for iOS project
 //
 
 import Foundation
@@ -136,7 +136,7 @@ public enum MFAAttributeInfo {
     }
     
     /// The release or version number of the framework.
-    /// - Remark: This value represents the latest [Github release version](https://github.com/ibm-security-verify/verify-sdk-ios/releases/tag).
+    /// - Remark: This value represents the latest [Github release version](https://github.com/ibm-verify/verify-mobile-ios/releases/tag).
     public static var frameworkVersion: String {
         get {
             return "3.0.5"

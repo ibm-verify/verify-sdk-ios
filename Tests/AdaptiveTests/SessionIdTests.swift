@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify Adaptive SDK for iOS project
+// Copyright contributors to the IBM Verify Adaptive SDK for iOS project
 //
 
 import XCTest

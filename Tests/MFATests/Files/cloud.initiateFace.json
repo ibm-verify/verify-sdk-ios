@@ -42,7 +42,7 @@
             }
         },
         "registrationUri": "https://sdk.verify.ibm.com/v1.0/authenticators/registration",
-        "serviceName": "IBM Security Verify SDK Tenant"
+        "serviceName": "IBM Verify SDK Tenant"
     },
     "id": "b0bf603f-ae9b-49ce-ad07-70f5777377db",
     "accessToken": "a1b2c3",

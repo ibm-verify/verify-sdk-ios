@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify MFA SDK for iOS project
+// Copyright contributors to the IBM Verify MFA SDK for iOS project
 //
 
 "InvalidHTTPMethod" = "The HTTP method is invalid for this operation";

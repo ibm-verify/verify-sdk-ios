@@ -1,6 +1,6 @@
 //
 //  JSONLDCredential 2.swift
-//  IBM Security Verify
+//  IBM Verify
 //
 //  Created by Craig Pearson on 21/10/2024.
 //

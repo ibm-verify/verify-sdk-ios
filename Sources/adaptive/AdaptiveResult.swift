@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify Adaptive SDK for iOS project
+// Copyright contributors to the IBM Verify Adaptive SDK for iOS project
 //
 
 import Foundation
@@ -208,7 +208,7 @@ public protocol AdaptiveDelegate {
     ///   - completion: A value that represents either a success or a failure, including an associated `AdaptiveResult` or `Error` in each case.
     func assessment(with sessionId: String, evaluationContext: String, completion: @escaping (Result<AdaptiveResult, Error>) -> Void)
     
-    /// Generate a factor against an endpoint that integrates against IBM Security Verify Policy Driven Authentication services.
+    /// Generate a factor against an endpoint that integrates against IBM Verify Policy Driven Authentication services.
     /// - Parameters:
     ///   - enrolmentId: The users enrolment identifier used to associate an evaluation.
     ///   - transactionId: Transaction identifier used to associate an evaluation.

@@ -1,6 +1,6 @@
-# IBM Security Verify MFA Sample App for iOS
+# IBM Verify MFA Sample App for iOS
 
-The MFA sample app is an end-to-end mobile app that uses features in [IBM Security Verify Access](https://www.ibm.com/au-en/products/verify-access) (on-premises) and [IBM Security Verify](https://www.ibm.com/verify/verify-identity) (cloud).
+The MFA sample app is an end-to-end mobile app that uses features in [IBM Verify Access](https://www.ibm.com/au-en/products/verify-access) (on-premises) and [IBM Verify](https://www.ibm.com/verify/verify-identity) (cloud).
 
 ## Getting started
 
@@ -27,7 +27,7 @@ The MFA sample app is an end-to-end mobile app that uses features in [IBM Securi
 3. Click **Profile & Settings**
 4. Click **Security** tab
 5. Click **Add new method +**
-6. Click **Add device** next to "IBM Security Verify App"
+6. Click **Add device** next to "IBM Verify App"
 7. Follow the prompts to when a QR code appears
 
 ## Running the app
@@ -44,7 +44,7 @@ The MFA sample app is an end-to-end mobile app that uses features in [IBM Securi
 
 ### Testing MFA
 1. Switch to the browser where you scanned the QR code - your device should now be registered
-2. Expand the device under "IBM Security Verify"
+2. Expand the device under "IBM Verify"
 3. Click the ⋮ symbol to the right of a "Method" i.e "Touch approval"
 4. Select **Test Method**
 5. Switch to the MFA app and tap **Check Transaction**

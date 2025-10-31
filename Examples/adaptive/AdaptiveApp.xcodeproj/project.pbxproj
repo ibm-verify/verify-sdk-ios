@@ -429,7 +429,7 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		4475DB2C274376AD001DC2BA /* XCRemoteSwiftPackageReference "verify-sdk-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ibm-security-verify/verify-sdk-ios";
+			repositoryURL = "https://github.com/ibm-verify/verify-mobile-ios";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 3.0.0;

@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify DPoP Sample App for iOS project
+// Copyright contributors to the IBM Verify DPoP Sample App for iOS project
 //
 
 import Foundation

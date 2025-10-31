@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify Adaptive Sample App for iOS project
+// Copyright contributors to the IBM Verify Adaptive Sample App for iOS project
 //
 
 import Foundation
@@ -8,7 +8,7 @@ import Adaptive
 
 // MARK: Constants
 
-/// The URL to the IBM Security Verify tenant. This URL below is an example tenant.  Or if you are running the NodeJS Porxy SDK, use an IP address.
+/// The URL to the IBM Verify tenant. This URL below is an example tenant.  Or if you are running the NodeJS Porxy SDK, use an IP address.
 let baseUrl = "https://craig.casey.com.au" // "https://proxy-sdk.au-syd.mybluemix.net" // Proxy SDK update the IP address
 
 // MARK: Properties

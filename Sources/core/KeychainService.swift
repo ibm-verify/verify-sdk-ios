@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify Core SDK for iOS project
+// Copyright contributors to the IBM Verify Core SDK for iOS project
 //
 
 import Foundation
@@ -133,7 +133,7 @@ public enum SecAccessible: RawRepresentable {
 }
 
 /// The keychain is the best place to store small secrets, like passwords and cryptographic keys. Use the functions of the keychain services API to add, retrieve, delete, or modify keychain items.
-/// - Note: The keychain service is specific to the IBM Security Verify in that, the keychain is not synchronized with Apple iCloud and access to the items in the keychain occurs after the first device unlock operation.
+/// - Note: The keychain service is specific to the IBM Verify in that, the keychain is not synchronized with Apple iCloud and access to the items in the keychain occurs after the first device unlock operation.
 public final class KeychainService: NSObject {
     // MARK: Variables
     private let logger: Logger

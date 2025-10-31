@@ -1,5 +1,5 @@
 //
-// Copyright contributors to the IBM Security Verify Authentication Sample App for iOS project
+// Copyright contributors to the IBM Verify Authentication Sample App for iOS project
 //
 
 import SwiftUI
