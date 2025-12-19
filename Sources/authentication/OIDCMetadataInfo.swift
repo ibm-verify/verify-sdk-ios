@@ -25,7 +25,7 @@ public struct OIDCMetadataInfo: Decodable {
     public let registrationEndpoint: String
    
     /// An array containing a list of OAuth 2.0 response types supported by this provider.
-    public  let responseTypesSupported: [String]
+    public let responseTypesSupported: [String]
     
     /// An array containing a list of OAuth 2.0 response modes supported by this provider.
     public let responseModesSupported: [String]

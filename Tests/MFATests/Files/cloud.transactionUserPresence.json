@@ -1,0 +1,26 @@
+{
+    "total": 1,
+    "limit": 200,
+    "count": 200,
+    "page": 1,
+    "verifications": [{
+        "creationTime": "2022-06-07T23:54:55.518Z",
+        "authenticationMethods": [{
+            "methodType": "signature",
+            "subType": "userPresence",
+            "id": "F0CF603F-AE9B-49CE-AD07-70F5777377DB",
+            "additionalData": [
+                {
+                    "name": "sampleName",
+                    "value": "sampleValue"
+                },
+                {
+                    "name":"name",
+                    "value":"b0bf603f-ae9b-49ce-ad07-70f5777377db.userPresence"
+                }
+            ]
+        }],
+        "transactionData":"{\"originIpAddress\":\"192.168.222.222\",\"originUserAgent\":\"Mozilla Firefox 11\",\"additionalData\":[{\"name\":\"foo\",\"value\":\"bar\"},{\"name\":\"type\",\"value\":\"Sign-in\"}, {\"name\":\"originLocation\",\"value\":\"Gold Coast, Australia\"},{\"name\":\"imageURL\",\"value\":\"https://picsum.photos/200/300\"}],\"message\":\"Do you approve the transfer for $1337\",\"timestamp\":\"2022-06-07T23:54:55.518Z\"}",
+        "id": "b1bd512f-094e-4792-a0f6-6b9c75f50466"
+    }]
+}

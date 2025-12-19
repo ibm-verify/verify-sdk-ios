@@ -8,6 +8,7 @@ import Foundation
 extension JSONDecoder {
     /// Decodes a top-level value of the given type from the given JSON representation.
     /// - parameters:
+    ///   - key: The name of the key associated with the array.
     ///   - type: The type of the array to decode.
     ///   - data: The data to decode from.
     /// - returns: A value of the requested type.

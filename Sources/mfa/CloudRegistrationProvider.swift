@@ -6,6 +6,7 @@ import Foundation
 import Authentication
 import Core
 import CryptoKit
+import LocalAuthentication
 
 /// A type that indicates when the cloud registration fails.
 public typealias CloudRegistrationError = MFARegistrationError
@@ -14,13 +15,43 @@ public typealias CloudRegistrationError = MFARegistrationError
 public class CloudRegistrationProvider: MFARegistrationDescriptor {
     public typealias Authenticator = CloudAuthenticator
     
-    /// Initiate an authenticator registration for IBM Verify instances or custom mobile authenticators.
+    // MARK: - Initialization
+        
+    /// Creates the instance with a JSON string value.  The initializer safely decodes the JSON string into an `RegistrationInfo` object.
+    ///
+    /// - Parameter value: The JSON string value, typically from a QR code.
+    /// - Throws: `CloudRegistrationError` if the string cannot be converted to data or if the JSON decoding fails.
+    public required init(json value: String) throws {
+        // Safely convert the JSON string to Data, throwing an error if it fails.
+        guard let data = value.data(using: .utf8) else {
+            throw CloudRegistrationError.dataInitializationFailed
+        }
+        
+        let decoder = JSONDecoder()
+        
+        do {
+            // Attempt to decode the data, catching any specific decoding errors.
+            let result = try decoder.decode(RegistrationInfo.self, from: data)
+            self.registrationInfo = result
+            self.accountName = result.accountName
+        }
+        catch {
+            // Re-throw the error as a more descriptive one with the original reason.
+            throw CloudRegistrationError.dataDecodingFailed(reason: error.localizedDescription)
+        }
+    }
+    
+    /// Initiates the in-app MFA registration process with the provided credentials.
+    ///
+    /// This function constructs and sends a network request to initiate MFA registration and handles potential network and data-related errors.
+    ///
     /// - Parameters:
-    ///   - initiateUri: The endpoint location to initiate an mutli-factor device registration.
-    ///   - accessToken: The authenticated user token.
-    ///   - clientId: The unique identifier of the authenticator client to be associated with the registration.
-    ///   - accountName: The account name associated with the service.
-    /// - Returns: A JSON structure representing the registration initiation.
+    ///   - initiateUri: The URL to initiate the registration request.
+    ///   - accessToken: The access token for authentication.
+    ///   - clientId: The client identifier.
+    ///   - accountName: The user's account name.
+    /// - Returns: A string representing the successful registration initiation.
+    /// - Throws: An `CloudRegistrationError` if the request or data processing fails.
     ///
     /// ```swift
     /// let accountName = "Test Account"
@@ -36,87 +67,88 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
     /// try await provider.initiate(with: accountName, pushToken: "abc123")
     /// ```
     public static func inAppInitiate(with initiateUri: URL, accessToken: String, clientId: String, accountName: String) async throws -> String {
-        // Create the request headers.
-        let headers = ["Authorization": "Bearer \(accessToken)"]
-        
-        // Construct the request body and parsing method.
-        let body = """
-        {
-            "clientId": "\(clientId)",
-            "accountName": "\(accountName)"
-        }
-        """.data(using: .utf8)!
-        
-        let resource = HTTPResource<String>(.post,
-                                            url: initiateUri,
-                                            accept: .json,
-                                            contentType: .json,
-                                            body: body,
-                                            headers: headers) { data, response in
+        do {
+            // Create the request headers.
+            let headers = ["Authorization": "Bearer \(accessToken)"]
             
-            // Ensure data is returned.
-            guard let data = data, !data.isEmpty else {
-                return Result.failure(CloudRegistrationError.dataInitializationFailed)
+            // Construct the request body.
+            let bodyString = """
+            {"clientId": "\(clientId)","accountName": "\(accountName)"}
+            """
+            
+            // Ensure the body can be converted to data.
+            guard let body = bodyString.data(using: .utf8) else {
+                throw CloudRegistrationError.dataInitializationFailed
             }
             
-            // Convert the data to JSON string.
-            guard let value = String(data: data, encoding: .utf8) else {
-                return Result.failure(CloudRegistrationError.failedToParse)
+            let resource = HTTPResource<String>(.post,
+                                                url: initiateUri,
+                                                accept: .json,
+                                                contentType: .json,
+                                                body: body,
+                                                headers: headers) { data, response in
+                
+                // Ensure data is returned.
+                guard let data = data, !data.isEmpty else {
+                    return Result.failure(CloudRegistrationError.dataInitializationFailed)
+                }
+                
+                // Convert the data to JSON string.
+                guard let value = String(data: data, encoding: .utf8) else {
+                    return Result.failure(CloudRegistrationError.dataDecodingFailed(reason: String(localized: "Failed to convert data to UTF-8 string.", bundle: .module)))
+                }
+                
+                return Result.success(value)
             }
             
-            return Result.success(value)
+            return try await URLSession.shared.dataTask(for: resource)
+            
         }
-        
-        return try await URLSession.shared.dataTask(for: resource)
+        catch {
+            // Catch any underlying network or other errors and rethrow them using the general `CloudRegistrationError.underlyingError` case.
+            throw CloudRegistrationError.underlyingError(error: error)
+        }
     }
     
-    /// Creates the instance with a JSON string value.
-    /// - Parameters:
-    ///   - value: The JSON value typically obtained from a QR code.
-    public required init(json value: String) throws {
-        let decoder = JSONDecoder()
-        guard let result = try? decoder.decode(InitializationInfo.self, from: value.data(using: .utf8)!) else {
-            throw MFARegistrationError.failedToParse
-        }
-        
-        self.pushToken = ""
-        self.accountName = result.accountName
-        self.initializationInfo = result
-    }
+    // MARK: - Properties
     
-    /// The cloud initialization information.
-    private let initializationInfo: InitializationInfo
+    /// The cloud registration information.
+    internal let registrationInfo: RegistrationInfo
     
-    /// The cloud metedata to enable authentication registration.
-    private var metadata: Metadata!
+    /// The cloud metedata to enable authentication initialization.
+    internal var initializationInfo: InitializationInfo?
     
     /// The access token to authenticate to the cloud service.
-    private var token: TokenInfo!
+    private var token: TokenInfo?
     
-    /// The array of factors that have been enrolled.
-    private var factors: [FactorType] = [FactorType]()
+    /// A signature factor refers to the use of a digital signature as a second factor to authenticate an external entity.
+    private var userPresence: UserPresenceFactorInfo?
     
-    /// The current factor that is being enrolled.
-    private var currentFactor: SignatureEnrollableFactor!
+    /// A signature factor refers to the use of a digital signature as a second factor to authenticate an external entity.
+    private var biometric: BiometricFactorInfo?
     
-    public var accountName: String
+    public var accountName: String = ""
     
-    public var pushToken: String
+    public var pushToken: String = ""
     
-    public var countOfAvailableEnrollments: Int {
-        return metadata.availableFactors.count
+    public var canEnrollBiometric: Bool {
+        let isFingerprintEnabled = initializationInfo?.metadata.authenticationMethods.signatureMethods["signature_fingerprint"]?.enabled ?? false
+        let isFaceEnabled = initializationInfo?.metadata.authenticationMethods.signatureMethods["signature_face"]?.enabled ?? false
+            
+        return isFingerprintEnabled || isFaceEnabled
     }
     
-    public var skipTotpEnrollment: Bool = true
+    public var canEnrollUserPresence: Bool {
+        initializationInfo?.metadata.authenticationMethods.signatureMethods["signature_userPresence"]?.enabled ?? false
+    }
        
     /// Initiates the multi-factor method enrollment.
     /// - Parameters:
     ///   - accountName: The account name associated with the service.
-    ///   - skipTotpEnrollment: A Boolean value that when set to `true` the TOTP authentication method enrollment attempt will be skipped.
     ///   - pushToken: A token that identifies the device to Apple Push Notification Service (APNS).
     ///
     /// Communicate with Apple Push Notification service (APNs) and receive a unique device token that identifies your app.  Refer to [Registering Your App with APNs](https://developer.apple.com/documentation/usernotifications/registering_your_app_with_apns).
-    internal func initiate(with accountName: String, skipTotpEnrollment: Bool = true, pushToken: String? = nil) async throws {
+    func initiate(with accountName: String, pushToken: String? = nil) async throws {
         // Override the account name assigned with init().
         self.accountName = accountName
         self.pushToken = pushToken ?? ""
@@ -129,186 +161,251 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
         attributes.removeValue(forKey: "applicationName")
         
         let data: [String: Any] = [
-            "code": initializationInfo.code,
+            "code": registrationInfo.code,
             "attributes": attributes
         ]
         
         // Convert body dictionary to Data.
         guard let body = try? JSONSerialization.data(withJSONObject: data, options: []) else {
-            throw CloudRegistrationError.failedToParse
+            throw CloudRegistrationError.dataDecodingFailed(reason: String(localized: "Failed to serialize registration data.", bundle: .module))
         }
         
-        let url = URL(string: self.initializationInfo.uri.absoluteString + "?skipTotpEnrollment=\(skipTotpEnrollment)")!
+        let url = URL(string: self.registrationInfo.uri.absoluteString + "?skipTotpEnrollment=true")!
         
         // Construct the request and parsing method.  We decode the metadata, then the token using the TokenInfo in the Authentication module.
-        let resource = HTTPResource<(metadata: Metadata, token: TokenInfo)>(.post, url: url, accept: .json, contentType: .json, body: body) { data, response in
+        let resource = HTTPResource<(initialization: InitializationInfo, token: TokenInfo)>(.post, url: url, accept: .json, contentType: .json, body: body) { data, response in
             guard let data = data, !data.isEmpty else {
                 return Result.failure(CloudRegistrationError.dataInitializationFailed)
             }
             
-            guard let metadata = try? JSONDecoder().decode(Metadata.self, from: data), let token = try? JSONDecoder().decode(TokenInfo.self, from: data) else {
-                return Result.failure(CloudRegistrationError.failedToParse)
+            do {
+                let metadata = try JSONDecoder().decode(InitializationInfo.self, from: data)
+                let token = try JSONDecoder().decode(TokenInfo.self, from: data)
+                return Result.success((metadata, token))
             }
-            return Result.success((metadata, token))
+            catch let decodingError as DecodingError {
+                // This block catches specific decoding errors and gives you the details
+                return Result.failure(CloudRegistrationError.dataDecodingFailed(reason: decodingError.localizedDescription))
+            }
+            catch {
+                // This catches any other unexpected errors
+                return Result.failure(CloudRegistrationError.underlyingError(error: error))
+            }
         }
         
         // Perfom the request.
         let result = try await URLSession.shared.dataTask(for: resource)
-        self.metadata = result.metadata
+        self.initializationInfo = result.initialization
         self.token = result.token
-        
-        // Check if TOTP got auto enrolled, if so remove it and append it to factors.
-        if let factor = self.metadata.availableFactors.first(where: { $0 is CloudTOTPEnrollableFactor }) as? CloudTOTPEnrollableFactor {
-            if !skipTotpEnrollment {
-                // Convert the enrollable factor.
-                self.factors = [
-                    .totp(TOTPFactorInfo(with: factor.secret, digits: factor.digits, algorithm: HashAlgorithmType(rawValue: factor.algorithm) ?? .sha1, period: factor.period))
-                ]
-            }
-            
-            // Remove the factor from being called from nextEnrollment
-            self.metadata.availableFactors.removeAll(where: { $0 is CloudTOTPEnrollableFactor })
-        }
-        
-        // Check if both face and fingerprint factors are available. If so, then determine the device biometry sensor and remove the unsupported factor.
-        if self.metadata.availableFactors.contains(where: { $0.type == .fingerprint }) && MFAAttributeInfo.hasTouchID {
-            self.metadata.availableFactors.removeAll(where: { $0.type == .face })
-        }
-        
-        if self.metadata.availableFactors.contains(where: { $0.type == .face }) && MFAAttributeInfo.hasFaceID {
-            self.metadata.availableFactors.removeAll(where: { $0.type == .fingerprint })
-        }
-    }
-              
-    public func nextEnrollment() async -> EnrollableSignature? {
-        // Get the next enrollable factor from metadata.
-        guard let factor = self.metadata.availableFactors.first as? SignatureEnrollableFactor else {
-            return nil
-        }
-        
-        defer {
-            self.currentFactor = factor
-            
-            // Remove the factor from being called from nextEnrollment
-            self.metadata.availableFactors.removeAll(where: { $0.type == factor.type })
-        }
-        
-        let algorithm = HashAlgorithmType.init(rawValue: factor.algorithm)!
-        
-        // Determine if the factor requires biometry.
-        let biometricAuthentication = factor.type == EnrollableType.userPresence ? false : true
-       
-        return EnrollableSignature(biometricAuthentication: biometricAuthentication, algorithm: algorithm, dataToSign: self.metadata.id)
     }
     
-    public func enroll() async throws {
-        // The name of the Keychain item is made up of the authenticator identifier and the factor type, consistent with existing Keychain entries.
-        let name = "\(self.metadata.id).\(self.currentFactor.type.rawValue)"
-        let publicKey = try generateKeys(name: name, biometricAuthentication: self.currentFactor.type == .face || self.currentFactor.type == .fingerprint)
-        let signedData = try sign(name: name, algorithm: self.currentFactor.algorithm, dataToSign: self.metadata.id)
-        
-        try await enroll(with: name, publicKey: publicKey, signedData: signedData)
+    // MARK: - User Presence Enrollment
+    
+    public func enrollUserPresence(savePrivateKey: (SecKeyAddType) throws -> String) async throws {
+        let signature: EnrollableSignature = ("signature_userPresence", "userPresence")
+        try await performSignatureEnrollment(signature: signature, savePrivateKey: savePrivateKey)
+    }
+    
+    // MARK: - Biometry Enrollment
+    
+    public func enrollBiometric(savePrivateKey: (SecKeyAddType) throws -> String, context: LAContext? = nil, reason: String?) async throws {
+        let context = context ?? LAContext()
+        let policy: LAPolicy = .deviceOwnerAuthenticationWithBiometrics
+        var error: NSError?
+
+        // Hardware / permission pre-check
+        guard context.canEvaluatePolicy(policy, error: &error) else {
+            let failure = error?.localizedDescription ?? "Biometry not available."
+            throw CloudRegistrationError.biometryFailed(reason: failure)
+        }
+
+        let localizedReason = reason ?? String(localized: "Authenticate to enroll", bundle: .module)
+
+        do {
+            try await context.evaluatePolicy(policy, localizedReason: localizedReason)
+        }
+        catch {
+            throw CloudRegistrationError.biometryFailed(reason: error.localizedDescription)
+        }
+
+        // Determine signature subtype
+        let signature: EnrollableSignature
+        switch context.biometryType {
+        case .faceID:
+            signature = ("signature_face", "face")
+        case .touchID:
+            signature = ("signature_fingerprint", "fingerprint")
+        case .none:
+            throw CloudRegistrationError.biometryFailed(reason: "No biometry type available.")
+        default:
+            throw CloudRegistrationError.biometryFailed(reason: "Unsupported biometry type.")
+        }
+
+        // Delegate to shared logic
+        try await performSignatureEnrollment(signature: signature, savePrivateKey: savePrivateKey)
     }
 
-    public func enroll(with name: String, publicKey: String, signedData: String) async throws {
-        guard let algorithm = HashAlgorithmType.init(rawValue: self.currentFactor.algorithm) else {
-            throw HashAlgorithmError.invalidHash
+    // MARK: - Private Methods
+    
+    private func performSignatureEnrollment(signature: EnrollableSignature, savePrivateKey: (SecKeyAddType) throws -> String) async throws {
+        guard let initializationInfo = self.initializationInfo else {
+            throw CloudRegistrationError.invalidState
         }
         
-        // Create the parameters for the request body.
+        // Validate signature method exists
+        guard let method = initializationInfo.metadata.authenticationMethods.signatureMethods[signature.methodKey] else {
+            throw CloudRegistrationError.invalidRegistrationData(
+                reason: "Signature method '\(signature.subType.camelToTitleCase)' not found."
+            )
+        }
+
+        guard method.enabled else {
+            throw CloudRegistrationError.signatureMethodNotEnabled(
+                type: signature.subType.camelToTitleCase
+            )
+        }
+
+        guard let attributes = method.attributes else {
+            throw CloudRegistrationError.invalidRegistrationData(
+                reason: "Signature method '\(signature.subType.camelToTitleCase)' has no attributes."
+            )
+        }
+
+        // Resolve algorithm
+        guard let preferredAlgorithm = SigningAlgorithm(from: attributes.algorithm) else {
+            throw CloudRegistrationError.invalidAlgorithm(
+                reason: "The resolved algorithm '\(attributes.algorithm)' is not valid."
+            )
+        }
+
+        // Generate key pair
+        let privateKey = RSA.Signing.PrivateKey()
+        let publicKey = privateKey.publicKey
+
+        // Sign challenge
+        let signedChallenge = try sign(initializationInfo.id, with: privateKey, signingAlgorithm: preferredAlgorithm)
+
+        // Store private key
+        let keyLabel = try savePrivateKey(.key(value: privateKey.derRepresentation))
+
+        // Perform server enrollment
+        try await enroll(for: signature, keyLabel: keyLabel, publicKey: publicKey.x509Representation, signedData: signedChallenge, algorithm: preferredAlgorithm, enrollmentUri: method.enrollmentUri
+        )
+    }
+    
+    /// A private helper function to handle the core enrollment logic for all signature factors.
+    private func enroll(for signature: EnrollableSignature, keyLabel: String, publicKey: String, signedData: String, algorithm: SigningAlgorithm, enrollmentUri: URL) async throws {
+        // 1. Create the parameters for the request body.
         let body = """
-            [{
-                "subType":"\(self.currentFactor.type.rawValue)",
-                "enabled":true,
-                "attributes":{
-                    "signedData":"\(signedData)",
-                    "publicKey":"\(publicKey)",
-                    "deviceSecurity":\(self.currentFactor.type == .face || self.currentFactor.type == .fingerprint),
-                    "algorithm":"\(self.currentFactor.algorithm)",
-                    "additionalData":[{
-                        "name":"name",
-                        "value":"\(name)"
-                    }]
-                }
-            }]
+        [{
+            "subType":"\(signature.subType)",
+            "enabled":true,
+            "attributes":{
+                "signedData":"\(signedData)",
+                "publicKey":"\(publicKey)",
+                "deviceSecurity":\(signature.subType != "userPresence"),
+                "algorithm":"\(algorithm.cloudValue)",
+                "additionalData":[{
+                    "name":"name",
+                    "value":"\(keyLabel)"
+                }]
+            }
+        }]
         """.data(using: .utf8)!
         
-        // Create the resource to execute the request to enroll a signature factor and parse the result.
-        let resource = HTTPResource<UUID>(.post, url: self.currentFactor.uri, accept: .json, contentType: .json, body: body, headers: ["Authorization": self.token.authorizationHeader]) { data, response in
+        // Safely unwrap the optional token to create the headers dictionary.
+        guard let token = self.token else {
+            throw MFAServiceError.tokenNotFound
+        }
+        
+        let headers = ["Authorization": token.authorizationHeader]
+        
+        // 2. Create the resource to execute the request to enroll a signature factor and parse the result.
+        let resource = HTTPResource<String>(.post, url: enrollmentUri, accept: .json, contentType: .json, body: body, headers: headers) { data, response in
             guard let data = data, !data.isEmpty else {
                 return Result.failure(CloudRegistrationError.dataInitializationFailed)
             }
             
             // Instead of a proxy object to parse this JSON, easier to parse the data to create a new signature factor from a dictionary.
             guard let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] else {
-                return Result.failure(CloudRegistrationError.failedToParse)
+                return Result.failure(CloudRegistrationError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from registration response.", bundle: .module)))
             }
             
-            // Get the first ID for the signature matching the enrollment type.  We'll use this as the identifer for the factor.
+            // Get the first ID for the signature matching the enrollment type. We'll use this as the identifer for the factor.
             for enrollment in json {
-                if let subType = enrollment["subType"] as? String, let type = EnrollableType(rawValue: subType), let id = enrollment["id"] as? String, let uuid = UUID(uuidString: id) {
-                    
-                    if type == self.currentFactor.type {
-                        return Result.success(uuid)
+                if let subType = enrollment["subType"] as? String, let id = enrollment["id"] as? String {
+                    if subType == signature.subType {
+                        return Result.success(id)
                     }
                 }
             }
             
-            return Result.failure(CloudRegistrationError.enrollmentFailed)
+            return Result.failure(CloudRegistrationError.enrollmentFailed(reason: "Signature sub-type not found in enrollment response."))
         }
-        
         
         let result = try await URLSession.shared.dataTask(for: resource)
         
-        if self.currentFactor.type == .face {
-            self.factors.append(.face(FaceFactorInfo(id: result, name: name, algorithm: algorithm)))
-        }
-        else if self.currentFactor.type == .fingerprint {
-            self.factors.append(.fingerprint(FingerprintFactorInfo(id: result, name: name, algorithm: algorithm)))
+        // 3. Assign the result to the appropriate factor property.
+        if signature.subType == "face" || signature.subType == "fingerprint" {
+            self.biometric = BiometricFactorInfo(id: result, name: keyLabel, algorithm: algorithm)
         }
         else {
-            self.factors.append(.userPresence(UserPresenceFactorInfo(id: result, name: name, algorithm: algorithm)))
+            self.userPresence = UserPresenceFactorInfo(id: result, name: keyLabel, algorithm: algorithm)
         }
     }
 
     public func finalize() async throws -> CloudAuthenticator {
+        // Ensure initializationInfo exists before proceeding.
+        guard let initializationInfo = self.initializationInfo else {
+            throw CloudRegistrationError.invalidState
+        }
+        
         var attributes = MFAAttributeInfo.dictionary()
         attributes["accountName"] = self.accountName
         attributes["pushToken"] = self.pushToken
         
-        // Update attribuets supported by cloud.
+        // Update attributes supported by cloud.
         attributes.removeValue(forKey: "applicationName")
         
+        // Safely unwrap the optional token and its refresh token.
+        guard let token = self.token, let refreshToken = token.refreshToken else {
+            throw MFAServiceError.tokenNotFound
+        }
+        
+        let headers = ["Authorization": token.authorizationHeader]
+        
         let data: [String: Any] = [
-            "refreshToken": self.token.refreshToken!,
+            "refreshToken": refreshToken,
             "attributes": attributes
         ]
         
         // Convert body dictionary to Data.
         guard let body = try? JSONSerialization.data(withJSONObject: data, options: []) else {
-            throw MFAServiceError.serializationFailed
+            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Failed to convert data to UTF-8 string.", bundle: .module))
         }
         
         // Refresh the token, which sets the authenticator state from ENROLLING to ACTIVE.
-        let registrationUri = URL(string: self.metadata.registrationUri.absoluteString + "?metadataInResponse=false")!
-        let resource = HTTPResource<TokenInfo>(json: .post, url: registrationUri, accept: .json, body: body, headers: ["Authorization": self.token.authorizationHeader])
-
-        
+        let registrationUri = URL(string: "\(initializationInfo.metadata.registrationUri.absoluteString)?metadataInResponse=false")!
+        let transactionUri =  URL(string: initializationInfo.metadata.registrationUri.absoluteString.replacingOccurrences(of: "registration", with: "\(initializationInfo.id)/verifications"))!
+                
+        let resource = HTTPResource<TokenInfo>(json: .post, url: registrationUri, accept: .json, body: body, headers: headers)
         let result = try await URLSession.shared.dataTask(for: resource)
         
-        return CloudAuthenticator(refreshUri: self.metadata.registrationUri,
-                                  transactionUri: self.metadata.transactionUri,
-                                  theme: self.metadata.theme,
+        return CloudAuthenticator(refreshUri: registrationUri,
+                                  transactionUri: transactionUri,
+                                  theme: initializationInfo.metadata.theme ?? [:],
                                   token: result,
-                                  id: self.metadata.id,
-                                  serviceName: self.metadata.serviceName,
+                                  id: initializationInfo.id,
+                                  serviceName: initializationInfo.metadata.serviceName,
                                   accountName: self.accountName,
-                                  allowedFactors: self.factors,
-                                  customAttributes: self.metadata.custom)
+                                  userPresence: self.userPresence,
+                                  biometric: self.biometric,
+                                  customAttributes: initializationInfo.metadata.customAttributes ?? [:])
     }
 
-    // MARK: - Cloud initialization
-    internal struct InitializationInfo: Decodable {
+    // MARK: - Cloud Registration
+    
+    struct RegistrationInfo: Decodable {
         /// The endpoint location to complete or initialize an mutli-factor.
         let uri: URL
         
@@ -326,176 +423,79 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
         }
     }
     
-    // MARK: - Cloud metadata
+    // MARK: - Cloud Initialization
     
-    /// The metadata associated with the service.
-    internal struct Metadata: Decodable {
-        /// An identifier generated by the service to uniquely identify an authenticator.
+    /// This structure contains all the necessary information to proceed with multi-factor authentication (MFA) registration, including tokens, metadata for enrollment, and version details.
+    struct InitializationInfo: Decodable {
+        /// The lifetime in seconds of the access token.
+        let expiresIn: Int
+        
+        /// The resource to enable an authenticator registration. This includes details about available authentication methods and service URIs.
+        let metadata: Metadata
+        
+        /// A unique identifier for the authenticator registration.
         let id: String
         
-        /// The domain of the site or app.
+        /// The access token used for making subsequent API calls.
+        let accessToken: String
+        
+        /// Details about the platform version of the token.
+        let version: Version
+        
+        /// A token that can be used to obtain a new access token once the current one expires.
+        let refreshToken: String
+    }
+
+    /// Contains information about the authentication registration.
+    struct Metadata: Decodable {
+        /// The enabled authentication methods for this tenant.
+        let authenticationMethods: AuthenticationMethods
+        
+        /// The location of the registration endpoint.
+        let registrationUri: URL
+        
+        /// The name of the tenant service.
         let serviceName: String
         
-        /// The registration location endpoint URL.
-        let registrationUri: URL
-
-        /// The transaction location endpoint URL.
-        let transactionUri: URL
-
-        /// The collection of available enrollment factors.
-        var availableFactors: [EnrollableFactor] = []
-
-        /// A custom color scheme that can be applied to app elements.  For example, buttons, background-color, text color.
-        let theme: [String: String]
-
-        /// Used to define features that can be applied to an app.
-        let features: [String]
+        /// Custom theming of the registration.
+        let theme: [String: String]?
         
-        /// Used to define custom property or settings that can be applied to an app.
-        let custom: [String: String]
-        
-    
-        // MARK: Enums
+        /// Custom defined attributes. Attribute keys and values are of string type.
+        let customAttributes: [String: String]?
+    }
 
-        /// The root level JSON structure for decoding.
-        private enum CodingKeys: String, CodingKey {
-            case id = "id"
-            case metadata
-        }
+    /// Represents version information for the platform.
+    struct Version: Decodable {
+        /// The interface version number.
+        let number: String
         
-        /// The `metadata` decoding structure.
-        private enum MetadataCodingKeys: String, CodingKey {
-            case serviceName
-            case registrationUri
-            case features = "featureFlags"
-            case theme = "themeAttributes"
-            case custom = "customAttributes"
-            case authenticationMethods = "authenticationMethods"
-        }
-        
-        /// The "customAttributes" decoding structure based off `CodingKeys`.
-        private enum CustomAttributesCodingKeys: String, CodingKey {
-            case theme
-        }
+        /// The product platform identifier.
+        let platform: String
+    }
 
-        /// The "authenticationMethods" decoding structure based off `CodingKeys`.
-        private enum AuthenticationMethodsCodingKeys: String, CodingKey {
-            case totp
-            case face = "signature_face"
-            case fingerprint = "signature_fingerprint"
-            case userpresence = "signature_userPresence"
-        }
-        
-        /// The "totp" decoding structure based off `CodingKeys` for `AuthenticationMethodsCodingKeys`
-        private enum TOTPCodingKeys: String, CodingKey {
-            case enabled
-            case enrollmentUri
-            case id
-            case attributes
-        }
+    // MARK: - Authentication Method Structures
 
-        /// The "signature_fingerprint", "signature_face" and "signature_userPresence"  decoding structure based off `CodingKeys` for `AuthenticationMethodsCodingKeys`.
-        private enum SignatureCodingKeys: String, CodingKey {
-            case enabled
-            case enrollmentUri
-            case attributes
-        }
+    /// A custom structure to handle the dynamic keys of the `authenticationMethods` object.
+
+    /// This implementation filters out the "totp" method during decoding.
+    struct AuthenticationMethods: Decodable {
+        /// Using a dictionary to store the dynamic key-value pairs
+        let signatureMethods: [String: SignatureMethod]
         
-        ///  The "attribute" decoding structure based off `CodingKeys` for `SignatureCodingKeys`
-        private enum AttributesCodingKeys: String, CodingKey {
-            case algorithm
-            case secret
-            case digits
-            case period
-        }
-        
-        /// Creates a new instance by decoding from the given decoder
-        /// - parameter decoder: The decoder to read data from.
-        internal init(from decoder: Decoder) throws {
-            let rootContainer = try decoder.container(keyedBy: CodingKeys.self)
+        init(from decoder: Decoder) throws {
+            // Create a keyed container to iterate through the authentication methods.
+            let container = try decoder.container(keyedBy: UnknownCodingKeys.self)
+            var methods: [String: SignatureMethod] = [:]
             
-            self.id = try rootContainer.decode(String.self, forKey: .id)
-           
-            // Metadata Keys
-            let metadataContainer = try rootContainer.nestedContainer(keyedBy: MetadataCodingKeys.self, forKey: .metadata)
-            self.serviceName = try metadataContainer.decode(String.self, forKey: .serviceName)
-            self.registrationUri = try metadataContainer.decode(URL.self, forKey: .registrationUri)
-            self.transactionUri = URL(string: registrationUri.absoluteString.replacingOccurrences(of: "registration", with: "\(self.id)/verifications"))!
-            self.features = try metadataContainer.decodeIfPresent([String].self, forKey: .features) ?? []
-            self.custom = try metadataContainer.decodeIfPresent([String: String].self, forKey: .custom) ?? [:]
-            self.theme = try metadataContainer.decodeIfPresent([String: String].self, forKey: .theme) ?? [:]
-            
-            // Get the values to assign to signature and one-time passcode authentication factors.
-            var availableFactors: [EnrollableFactor] = []
-            
-            if metadataContainer.contains(.authenticationMethods) {
-                let authenticationContainer = try metadataContainer.nestedContainer(keyedBy: AuthenticationMethodsCodingKeys.self, forKey: .authenticationMethods)
-                
-                // Check if userpresence signature is present and enabled.
-                if authenticationContainer.contains(.userpresence) {
-                    let container = try authenticationContainer.nestedContainer(keyedBy: SignatureCodingKeys.self, forKey: .userpresence)
-                    
-                    if let factor = try? createSignatureFactor(container, type: .userPresence) {
-                        availableFactors.append(factor)
-                    }
-                }
-                
-                // Check if fingerprint signature is present and enabled.
-                if authenticationContainer.contains(.fingerprint) {
-                    let container = try authenticationContainer.nestedContainer(keyedBy: SignatureCodingKeys.self, forKey: .fingerprint)
-                    
-                    if let factor = try? createSignatureFactor(container, type: .fingerprint) {
-                        availableFactors.append(factor)
-                    }
-                }
-                
-                // Check if face signature is present and enabled.
-                if authenticationContainer.contains(.face) {
-                    let container = try authenticationContainer.nestedContainer(keyedBy: SignatureCodingKeys.self, forKey: .face)
-                    
-                    if let factor = try? createSignatureFactor(container, type: .face) {
-                        availableFactors.append(factor)
-                    }
-                }
-                
-                // Check if totp is present, enabled and contains attributes. Where attributes don't exist, it means the user has an existing TOTP enrollment.
-                if authenticationContainer.contains(.totp) {
-                    let totp = try authenticationContainer.nestedContainer(keyedBy: TOTPCodingKeys.self, forKey: .totp)
-                
-                    if totp.contains(.attributes) {
-                        if try totp.decode(Bool.self, forKey: .enabled) {
-                            let enrollmentUri = try totp.decode(URL.self, forKey: .enrollmentUri)
-                            let id = try totp.decode(String.self, forKey: .id)
-                            let attributesContainer = try totp.nestedContainer(keyedBy: AttributesCodingKeys.self, forKey: .attributes)
-                            let algorithm = try attributesContainer.decode(String.self, forKey: .algorithm )
-                            let period = try attributesContainer.decode(Int.self, forKey: .period)
-                            let digits = try attributesContainer.decode(Int.self, forKey: .digits)
-                            let secret = try attributesContainer.decode(String.self, forKey: .secret)
-                           
-                            availableFactors.append(CloudTOTPEnrollableFactor(uri: enrollmentUri, id: id, algorithm: algorithm, secret: secret, digits: digits, period: period))
-                        }
-                    }
+            for key in container.allKeys {
+                // Explicitly skip any key with the value "totp" as requested.
+                if key.stringValue != "totp" {
+                    let signatureMethod = try container.decode(SignatureMethod.self, forKey: key)
+                    methods[key.stringValue] = signatureMethod
                 }
             }
             
-            self.availableFactors = availableFactors
-        }
-        
-        /// Create a signature enrollment factor.
-        /// - Parameters:
-        ///    - container: A concrete container that provides a view into a decoder’s storage, making the encoded properties of a decodable type accessible by keys.
-        ///    - type: The `FactorType` value for the signature.
-        /// - Returns: An instance of `EnrollmentFactor` otherwise, `nil`.
-        private func createSignatureFactor(_ container: KeyedDecodingContainer<CloudRegistrationProvider.Metadata.SignatureCodingKeys>, type: EnrollableType) throws -> SignatureEnrollableFactor? {
-            if try container.decode(Bool.self, forKey: .enabled) {
-                let uri = try container.decode(URL.self, forKey: .enrollmentUri)
-                let attributesContainer = try container.nestedContainer(keyedBy: AttributesCodingKeys.self, forKey: .attributes)
-                let algorithm = try attributesContainer.decode(String.self, forKey: .algorithm)
-                
-                return SignatureEnrollableFactor(uri: uri, type: type, algorithm: algorithm)
-            }
-            
-            return nil
+            self.signatureMethods = methods
         }
     }
 }

@@ -121,7 +121,7 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
     /// Call nextTransaction returning the next available.
     func testNextTransaction() async throws {
         // Given
-        let transactionID = "fcd138c0-396f-4298-8c14-27a5196ad05e"
+        let transactionId = "fcd138c0-396f-4298-8c14-27a5196ad05e"
         let transactionUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending")!
         let challenageUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?MmfaTransactionId=FCD138C0-396F-4298-8C14-27A5196AD05E")!
         
@@ -135,13 +135,13 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         // Then
         let result = try await service.nextTransaction()
         XCTAssertEqual(result.countOfPendingTransactions, 2)
-        XCTAssertEqual(result.current?.id, transactionID)
+        XCTAssertEqual(result.current?.id, transactionId)
     }
     
     /// Test an on-premise transaction with the SDK performing the signing.
     func testNextTransactionWithKeys() async throws {
         // Given
-        let transactionID = "fcd138c0-396f-4298-8c14-27a5196ad05e"
+        let transactionId = "fcd138c0-396f-4298-8c14-27a5196ad05e"
         let transactionUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending")!
         let challenageUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?MmfaTransactionId=FCD138C0-396F-4298-8C14-27A5196AD05E")!
         let completeTransactionUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?StateId=3oU0Y2A52YnkX39Dnz3dAxRi49ynz7lDMgO3BUHuY57syFoUJ92VLCXQtGXFvuKX29S8gEqhKshSJ5TU2UGKunsXi4SJ9VR0ET3An6JTpPkE14NjMqreYhzTUnglrqVW")!
@@ -157,12 +157,12 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         // Then
         let result = try await service.nextTransaction()
         XCTAssertEqual(result.countOfPendingTransactions, 2)
-        XCTAssertEqual(result.current?.id, transactionID)
+        XCTAssertEqual(result.current?.id, transactionId)
         
         // Then
         do {
-            if let factorType = authenticator.allowedFactors.first {
-                try await service.completeTransaction(factor: factorType)
+            if let factorType = authenticator.userPresence {
+                try await service.completeTransaction(action: .verify, factor: .userPresence(factorType))
             }
         }
         catch let error {
@@ -193,7 +193,7 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
     /// Call nextTransaction by a transaction identifier.
     func testNextTransactionWithID() async throws {
         // Given
-        let transactionID = "dea8b846-76dc-4786-9941-daf9fa86427e"
+        let transactionId = "dea8b846-76dc-4786-9941-daf9fa86427e"
         let transactionUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending")!
         let challenageUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?MmfaTransactionId=DEA8B846-76DC-4786-9941-DAF9FA86427E")!
         
@@ -205,15 +205,15 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         let service = OnPremiseAuthenticatorService(with: authenticator.token.accessToken, refreshUri: authenticator.refreshUri, transactionUri: authenticator.transactionUri, clientId: authenticator.clientId, authenticatorId: "296C632A-E142-413E-9CDE-B547A1258BA8")
         
         // Then
-        let result = try await service.nextTransaction(with: transactionID)
+        let result = try await service.nextTransaction(with: transactionId)
         XCTAssertEqual(result.countOfPendingTransactions, 2)
-        XCTAssertEqual(result.current?.id, transactionID)
+        XCTAssertEqual(result.current?.id, transactionId)
     }
     
     /// Call nextTransaction returning the next available where no authenticator identifier is found.
     func testNextTransactionNoAuthenticator() async throws {
         // Given
-        let transactionID = "dea8b846-76dc-4786-9941-daf9fa86427e"
+        let transactionId = "dea8b846-76dc-4786-9941-daf9fa86427e"
         let transactionUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending")!
         let challenageUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?MmfaTransactionId=DEA8B846-76DC-4786-9941-DAF9FA86427E")!
            
@@ -227,7 +227,7 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         // Then
         let result = try await service.nextTransaction()
         XCTAssertEqual(result.countOfPendingTransactions, 1)
-        XCTAssertEqual(result.current?.id, transactionID)
+        XCTAssertEqual(result.current?.id, transactionId)
     }
     
     
@@ -268,6 +268,9 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         // Then
         let result = try await service.nextTransaction()
         XCTAssertEqual(result.current?.message, "You have a pending request")
+        
+        // Than
+        XCTAssertEqual(result.countOfPendingTransactions, 2)
     }
     
     /// Call nextTransaction where the challenge is not present.  Occurs on older versions of ISMA aka < v9.0.6

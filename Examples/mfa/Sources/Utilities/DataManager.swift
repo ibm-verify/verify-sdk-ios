@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import Core
 import MFA
 
 class DataManager {
@@ -56,3 +57,13 @@ class DataManager {
     }
 }
 
+extension DataManager {
+    static func saveBiometricPrivateKey(_ key: SecKeyAddType) throws -> String {
+        // Generate a unique label for the key
+        let keyLabel = "\(UUID().uuidString).privateKey"
+    
+        try KeychainService.default.addItem(keyLabel, value: key, accessControl: .userPresence)
+        
+        return keyLabel
+    }
+}

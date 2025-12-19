@@ -28,4 +28,22 @@ extension String {
         
         return value
     }
+    
+    /// Converts a camelCase or PascalCase string into a human-readable Title Case string.
+    ///
+    /// Examples:
+    /// - `"userPresence"` → `"User Presence"`
+    /// - `"userID"` → `"User ID"`
+    /// - `"URLSessionTask"` → `"URL Session Task"`
+    public var camelToTitleCase: String {
+        // Insert space before each uppercase letter that follows a lowercase letter or another uppercase letter
+        let spaced = self.replacingOccurrences(
+            of: #"(?<=[a-z])([A-Z])|(?<=[A-Z])([A-Z][a-z])"#,
+            with: " $0",
+            options: .regularExpression
+        )
+        
+        // Capitalize the result and trim any leading/trailing spaces
+        return spaced.trimmingCharacters(in: .whitespacesAndNewlines).capitalized
+    }
 }

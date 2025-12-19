@@ -8,7 +8,7 @@
         "name": "https://login.ibm.com/oidc/endpoint/default/2700033WG8",
         "displayName": "craigaps@au1.ibm.com"
     },
-    "timeout": 60000,
+    "timeout": 2000,
     "challenge": "j9rOOtjL-VuNdLsFd5Y3qtJ5V0Y9GMqQOqRKLtxVBtg",
     "excludeCredentials": [
         {

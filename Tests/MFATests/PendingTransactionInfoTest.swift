@@ -16,7 +16,7 @@ class PendingTransactionInfoTest: XCTestCase {
     
     func testPendingTransactionInit() throws {
         // Given
-        let value = PendingTransactionInfo(id: "abcd-efgh-ijkl", message: "Some transaction", postbackUri: URL(string: "https://sdk.verify.ibm.com")!, factorID: UUID(), factorType: "userPresence", dataToSign: "d4e5f6", timeStamp: Date(), additionalData: [TransactionAttribute.ipAddress: "1.1.1.1"])
+        let value = PendingTransactionInfo(id: "abcd-efgh-ijkl", message: "Some transaction", postbackUri: URL(string: "https://sdk.verify.ibm.com")!, keyName: UUID().uuidString, factorId: UUID().uuidString, factorType: "userPresence", dataToSign: "d4e5f6", timeStamp: Date(), additionalData: [TransactionAttribute.ipAddress: "1.1.1.1"])
         
         // When, Then
         XCTAssertNotNil(value, "Pending transaction initialized")
@@ -24,7 +24,7 @@ class PendingTransactionInfoTest: XCTestCase {
     
     func testPendingTransactionShort() throws {
         // Given
-        let value = PendingTransactionInfo(id: "abcd-efgh-ijkl", message: "Some transaction", postbackUri: URL(string: "https://sdk.verify.ibm.com")!, factorID: UUID(), factorType: "userPresence", dataToSign: "d4e5f6", timeStamp: Date(), additionalData: [TransactionAttribute.ipAddress: "1.1.1.1"])
+        let value = PendingTransactionInfo(id: "abcd-efgh-ijkl", message: "Some transaction", postbackUri: URL(string: "https://sdk.verify.ibm.com")!, keyName: UUID().uuidString, factorId: UUID().uuidString, factorType: "userPresence", dataToSign: "d4e5f6", timeStamp: Date(), additionalData: [TransactionAttribute.ipAddress: "1.1.1.1"])
         
         // When, Then
         XCTAssertEqual(value.shortId, "abcd")

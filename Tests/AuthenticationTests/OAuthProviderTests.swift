@@ -42,6 +42,23 @@ class OAuthProviderTest: XCTestCase {
         }
     }
     
+    /// Tests the disovery endpoint against a publically OAuth 2 endpoint with a self-signed certificate.
+    func testDiscoverWithSelfSignedCert() async throws {
+        // Given
+       let url = URL(string: "\(urlBase)/.well-known/openid-configuration")!
+        
+        // Where, Then
+        do {
+            let result = try await OAuthProvider.discover(issuer: url, certificateTrust: SelfSignedCertificateDelegate())
+            XCTAssertNotNil(result)
+            XCTAssert(true)
+        }
+        catch let error {
+            print(error)
+            XCTFail(error.localizedDescription)
+        }
+    }
+    
     func testInvalidDiscover() async throws {
         // Given
         let url = URL(string: "\(urlBase)/.well-known")!

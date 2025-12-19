@@ -7,6 +7,11 @@ import Foundation
 import FoundationNetworking
 #endif
 
+import OSLog
+
+private let logger = Logger(subsystem: "Core", category: "Networking")
+
+
 // MARK: Enums
 
 /// An error that occurs during URLSession operations.
@@ -92,7 +97,7 @@ extension URLSessionError: LocalizedError {
 }
 
 /// HTTP response status codes that are acceptable.
-var acceptableStatusCodes: Range<Int> { 200..<300 }
+var acceptableStatusCodes: Range<Int> { 200..<400 }
 
 // MARK: Helper Functions
 
@@ -168,7 +173,8 @@ public struct HTTPResource<T> {
     /// - Parameter timeOutInterval: The timeout interval for the request, in seconds. The default is 60.0.
     /// - Parameter queryParams: A dictionary of query items to append to the URL.
     /// - Parameter parse: A function type to transform `T`.
-    public init(_ method: method = .get, url: URL, accept: ContentType? = nil, contentType: ContentType? = nil, body: Data? = nil, headers: [String: String] = [:], timeOutInterval: TimeInterval = 60, queryParams: [String: String] = [:], parse: @escaping (Data?, URLResponse?) -> Result<T, Error>) {
+    /// - Returns: A `Result` value that represents either a success or a failure, including an associated value in each case.
+    public init(_ method: method = .get, url: URL, accept: ContentType? = nil, contentType: ContentType? = nil, body: Data? = nil, headers: [String: String]? = [:], timeOutInterval: TimeInterval = 60, queryParams: [String: String] = [:], parse: @escaping (Data?, URLResponse?) -> Result<T, Error>) {
         
         var requestUrl: URL
         
@@ -186,18 +192,20 @@ public struct HTTPResource<T> {
         request = URLRequest(url: requestUrl)
         
         // Add the accept header.
-        if let accept = accept {
+        if let accept {
             request.setValue(accept.rawValue, forHTTPHeaderField: "Accept")
         }
         
         // Add the content-type.
-        if let contentType = contentType {
+        if let contentType {
             request.setValue(contentType.rawValue, forHTTPHeaderField: "Content-Type")
         }
         
         // Add the additional headers.
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
+        if let headers {
+            for (key, value) in headers {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
         }
         
         request.timeoutInterval = timeOutInterval
@@ -210,7 +218,7 @@ public struct HTTPResource<T> {
     }
     
     /// Creates a new `HTTPResource` from a `URLRequest`.
-    /// - Parameter request: The `URLRequest` to execute.
+    /// - Parameter method: A URL request object that provides request-specific information such as the URL, cache policy, request type, and body data or body stream.
     /// - Parameter parse: A function type  to transforms `T`.
     public init(request: URLRequest, parse: @escaping (Data?, URLResponse?) -> Result<T, Error>) {
         self.request = request
@@ -250,7 +258,7 @@ extension HTTPResource where T: Decodable {
     /// Creates a new `HTTPResource` for JSON operations that have an optional request body.
     /// - Parameter method: The HTTP request method.
     /// - Parameter url: The URL of the request.
-    /// - Parameter accept: The content type for the `Accept` header.  Default `application/json`.
+    /// - Parameter accepts: The content type for the `Accept` header.  Default `application/json`.
     /// - Parameter contentType: The content type for the `Content-Type` header.  Default `application/json`.
     /// - Parameter body: The JSON data sent as the message body of a request, such as for an HTTP POST request.
     /// - Parameter headers: A dictionary of additional HTTP header fields for a request.
@@ -272,7 +280,7 @@ extension HTTPResource where T: Decodable {
     /// Creates a new `HTTPResource` for JSON operations with an encodable body.
     /// - Parameter method: The HTTP request method.
     /// - Parameter url: The URL of the request.
-    /// - Parameter accept: The content type for the `Accepts` header.  Default `application/json`.
+    /// - Parameter accepts: The content type for the `Accepts` header.  Default `application/json`.
     /// - Parameter body: The data sent as the message body of a request, such as for an HTTP POST.
     /// - Parameter headers: A dictionary of additional HTTP header fields for a request.
     /// - Parameter timeOutInterval: The timeout interval for the request, in seconds. The default is 60.0.
@@ -298,30 +306,82 @@ extension HTTPResource where T: Decodable {
 extension URLSession {
     /// Creates a task that retrieves the contents of the specified URL, then calls a handler upon completion.
     /// - Parameter resource: The `HTTPResource` containing the request.
+    /// - Parameter completionHandler: The completion handler to call when the load request is complete.
     /// - Returns: The new session data task.
     @discardableResult
     public func dataTask<T>(for resource: HTTPResource<T>) async throws -> T {
-        async let (data, response) = try await self.data(for: resource.request)
+        logger.info("URLSession.dataTask - ENTRY")
         
-        guard let httpResponse = try await response as? HTTPURLResponse else {
+        defer {
+            logger.info("URLSession.dataTask - EXIT")
+        }
+        
+        // Generate a unique identifier for this request-response pair.
+        let requestId = UUID()
+        let startTime = Date() // Capture the start time for calculating request latency.
+
+        logger.debug("⬆️ Request [\(requestId.uuidString)]: Method: \(resource.request.httpMethod ?? "N/A"), URL: \(resource.request.url?.absoluteString ?? "N/A")")
+        
+        #if DEBUG
+        if let headers = resource.request.allHTTPHeaderFields {
+            logger.debug("➡️ Request [\(requestId.uuidString)] Headers: \(headers)")
+        }
+        
+        if let data = resource.request.httpBody, let body = String(data: data, encoding: .utf8) {
+            logger.debug("➡️ Request [\(requestId.uuidString)] Body: \(body)")
+        }
+        #endif
+        
+        // Perform the actual network request. `async let` allows `data` and `response` to be fetched concurrently if possible, but `try await` will wait for both to complete.
+        async let (data, response) = try await self.data(for: resource.request)
+
+        let resolvedData: Data
+        let resolvedResponse: URLResponse
+
+        // Use a do-catch block to specifically handle errors that occur during the network call itself (e.g., network connectivity issues, DNS lookup failures).
+        do {
+            (resolvedData, resolvedResponse) = try await (data, response)
+        }
+        catch {
+            let latency = Date().timeIntervalSince(startTime) // Calculate latency even for errors.
+            logger.error("❌ Network Error [\(requestId.uuidString)]: URL: \(resource.request.url?.absoluteString ?? "N/A"), Latency: \(String(format: "%.3f", latency))s, Error: \(error.localizedDescription)")
+            
+            throw error // Re-throw the original network error.
+        }
+        
+        let latency = Date().timeIntervalSince(startTime)
+        
+        guard let httpResponse = resolvedResponse as? HTTPURLResponse else {
+            logger.error("❌ Response [\(requestId.uuidString)] Error: Unknown response type for URL: \(resource.request.url?.absoluteString ?? "N/A"), Latency: \(String(format: "%.3f", latency))s")
             throw URLSessionError.unknown
         }
-                        
+        
+        // Log the basic response information: status code, URL, and latency.
+        logger.info("⬇️ Response [\(requestId.uuidString)]: Status: \(httpResponse.statusCode), URL: \(httpResponse.url?.absoluteString ?? "N/A"), Latency: \(String(format: "%.3f", latency))s")
+              
+        #if DEBUG
+        if let headers = httpResponse.allHeaderFields as? [String: Any] {
+            logger.debug("⬅️ Response [\(requestId.uuidString)] Headers: \(headers)")
+        }
+        
+        if let body = String(data: resolvedData, encoding: .utf8) {
+            logger.debug("⬅️ Response [\(requestId.uuidString)] Body: \(body)")
+        }
+        #endif
+        
         guard acceptableStatusCodes.contains(httpResponse.statusCode) else {
+            let description = try await String(decoding: data, as: UTF8.self)
+            
+            logger.error("❌ Response [\(requestId.uuidString)] Error: Unacceptable Status Code: \(httpResponse.statusCode) for URL: \(httpResponse.url?.absoluteString ?? "N/A"), Description: \(description)")
+            
             if httpResponse.statusCode == 401 {
                 throw URLSessionError.unauthenticated
             }
             
-            let description = try await String(decoding: data, as: UTF8.self)
             throw URLSessionError.invalidResponse(statusCode: httpResponse.statusCode, description: description)
         }
         
-        #if DEBUG
-            let description = try await String(decoding: data, as: UTF8.self)
-            print("--RESPONSE--\n")
-            print("\tUrl:\n\(resource.request.url!)\n")
-            print("\tBody:\n\(description)")
-        #endif
+        logger.info("✅ Success [\(requestId.uuidString)]: Parsed data for URL: \(resource.request.url?.absoluteString ?? "N/A")")
         
         return try await resource.parse(data, httpResponse).get()
     }

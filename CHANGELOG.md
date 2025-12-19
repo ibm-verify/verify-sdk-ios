@@ -1,5 +1,33 @@
 Note: This is in reverse chronological order, so newer entries are added to the top.
 
+# v3.0.12
+19 December 2025
+### IBM Verify DC SDK for iOS
+* Remove support for digital credentials. Refer to https://github.com/IBM-Verify/verify-mobile-dc-wallet-ios
+
+### IBM Verify Core SDK for iOS
+* Increment version
+* Copyright and naming update
+* Improved support for reading and writing data and private keys
+
+### IBM Verify Authentication SDK for iOS
+* Increment version
+* Copyright and naming update
+
+### IBM Verify Adaptive SDK for iOS
+* Increment version
+* Copyright and naming update
+
+### IBM Verify FIDO2™ SDK for iOS
+* Increment version
+* Copyright and naming update
+
+### IBM Verify MFA SDK for iOS
+* Increment version
+* Copyright and naming update
+* Naming consistency
+* Improved signature enrollment and transaction signing
+
 # v3.0.11
 15 September 2024
 ### IBM Verify DC SDK for iOS

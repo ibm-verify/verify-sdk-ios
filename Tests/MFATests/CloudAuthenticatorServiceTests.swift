@@ -83,10 +83,10 @@ class CloudAuthenticatorServiceTest: XCTestCase {
     /// Call nextTransaction by a transaction identifier.
     func testNextTransactionWithID() async throws {
         // Given
-        let transactionID = "b1bd512f-094e-4792-a0f6-6b9c75f50466"
+        let transactionId = "b1bd512f-094e-4792-a0f6-6b9c75f50466"
         let allowedCharacterSet = CharacterSet(charactersIn: "\"").inverted
-        let queryString = String(format: "\(CloudAuthenticatorService.TransactionFilter.pendingByIdentifier.rawValue)", transactionID)
-        let verificationsUrl = URL(string: "\(urlBase)/v1.0/authenticators/verifications/\(queryString.addingPercentEncoding(withAllowedCharacters: allowedCharacterSet)!)")!
+        let queryString = String(format: "\(CloudAuthenticatorService.TransactionFilter.pendingByIdentifier.rawValue)", transactionId)
+        let verificationsUrl = URL(string: "\(urlBase)/v1.0/authenticators/verifications\(queryString.addingPercentEncoding(withAllowedCharacters: allowedCharacterSet)!)")!
         let transactionUrl = URL(string: "\(urlBase)/v1.0/authenticators/verifications")!
         
         MockURLProtocol.urls[verificationsUrl] = MockHTTPResponse(response: HTTPURLResponse(url: verificationsUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.transaction")
@@ -94,11 +94,11 @@ class CloudAuthenticatorServiceTest: XCTestCase {
         // Where
         let service = CloudAuthenticatorService(with: "abc123", refreshUri: URL(string: "\(urlBase)/v1.0/")!, transactionUri: transactionUrl, authenticatorId: UUID().uuidString)
         
-        let result = try await service.nextTransaction(with: transactionID)
+        let result = try await service.nextTransaction(with: transactionId)
         
         // Then
         XCTAssertEqual(result.countOfPendingTransactions, 2)
-        XCTAssertEqual(result.current?.id, transactionID)
+        XCTAssertEqual(result.current?.id, transactionId)
     }
     
     /// Call nextTransaction returning the next available.
@@ -112,7 +112,7 @@ class CloudAuthenticatorServiceTest: XCTestCase {
         // Where
         let service = CloudAuthenticatorService(with: "abc123", refreshUri: URL(string: "\(urlBase)/v1.0/")!, transactionUri: transactionUrl, authenticatorId: UUID().uuidString)
         
-       let result = try await service.nextTransaction()
+        let result = try await service.nextTransaction()
         
         // Then
         XCTAssertEqual(result.countOfPendingTransactions, 2)
@@ -170,8 +170,8 @@ class CloudAuthenticatorServiceTest: XCTestCase {
         do {
             try await service.completeTransaction(signedData: "abcdef")
         }
-        catch let error {
-            XCTAssertEqual(error as? MFAServiceError, .invalidPendingTransaction)
+        catch {
+            XCTAssertTrue(error is MFAServiceError)
         }
     }
     

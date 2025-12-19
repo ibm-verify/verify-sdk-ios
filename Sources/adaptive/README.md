@@ -11,7 +11,7 @@ An [example](../../Examples/adaptive) application is available for the Adaptive 
 ### Prerequisites
 
 - Install and configure the
-[Proxy SDK](https://github.com/IBM-Verify/adaptive-proxy-sdk-javascript) on a Node server by running `npm install adaptive-proxy-sdk`
+[Proxy SDK](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript) on a Node server by running `npm install adaptive-proxy-sdk`
 
 - Generate and download the Trusteer SDK via IBM Verify admin portal for the application.
 
@@ -23,14 +23,14 @@ An [example](../../Examples/adaptive) application is available for the Adaptive 
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-mobile-ios.git", from: "3.0.11")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.0.12")
 ]
 ```
 
 then in the `targets` section of the application/library, add one or more components to your `dependencies`, for example:
 
 ```swift
-// Target for Swift 5.7
+// Target for Swift 6.0
 .target(name: "MyExampleApp", dependencies: [
     .product(name: "Adaptive", package: "IBM Verify")
 ],
@@ -41,7 +41,7 @@ Alternatively, you can add the package manually.
 2. Select your application project under the **PROJECT** heading
 3. Select the **Swift Packages** tab.
 4. Click on the `+` button.
-5. Enter `https://github.com/ibm-verify/verify-mobile-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
+5. Enter `https://github.com/ibm-verify/verify-sdk-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
 
 
 ### API documentation
@@ -109,10 +109,10 @@ class MyAdaptive: AdaptiveDelegate {
 
 ### Perform a risk assessment
 
-The purpose of the `assessment` function is to initiate a risk assessment via the [Proxy SDK](https://github.com/IBM-Verify/adaptive-sdk-javascript). The implementation of the `assessment` function should send a request to the Proxy SDK.
+The purpose of the `assessment` function is to initiate a risk assessment via the [Proxy SDK](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript). The implementation of the `assessment` function should send a request to the Proxy SDK.
 
 Upon receiving the request, the server should call the Proxy SDK's
-[`assess`](https://github.com/IBM-Verify/adaptive-sdk-javascript/tree/develop#assess-a-policy) method, and respond accordingly.
+[`assess`](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript/tree/develop#assess-a-policy) method, and respond accordingly.
 
 Once a successful response is received, it can be classified into one of `AllowAssessmentResult`, `DenyAssessmentResult`, or `RequiresAssessmentResult` structures, to be passed in the `completion` function.                             
 
@@ -136,9 +136,9 @@ Once a successful response is received, it can be classified into one of `AllowA
 ### Perform a factor generation
 
 The `generate` function is to generate a `FactorType` verification via
-the [Proxy SDK](https://github.com/IBM-Verify/adaptive-sdk-javascript).
+the [Proxy SDK](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript).
 
-The implementation of this function should send a request to a server using the Proxy SDK. Upon receiving the request, the server should call the Proxy SDK's [`generateEmailOTP`](https://github.com/IBM-Verify/adaptive-sdk-javascript/tree/develop#generate-an-email-otp-verification) or [`generateSMSOTP`](https://github.com/IBM-Verify/adaptive-sdk-javascript/tree/develop#generate-an-sms-otp-verification) methods. The method to call should correspond to a `FactorGenerationInfo` type of the `factor` property. Typically, the server will not respond after generating these verifications.
+The implementation of this function should send a request to a server using the Proxy SDK. Upon receiving the request, the server should call the Proxy SDK's [`generateEmailOTP`](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript/tree/develop#generate-an-email-otp-verification) or [`generateSMSOTP`](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript/tree/develop#generate-an-sms-otp-verification) methods. The method to call should correspond to a `FactorGenerationInfo` type of the `factor` property. Typically, the server will not respond after generating these verifications.
 
 The currently supported `FactorType` for generation are `.emailOTP`
 and `.smsOTP`.
@@ -162,8 +162,8 @@ and `.smsOTP`.
 
 ### Perform a factor evaluation
 
-The implementation of this function should send a request to a server using the Proxy SDK. Upon receiving the request, the server should call the Proxy SDK's [`evaluateUsernamePassword`](https://github.com/IBM-Verify/adaptive-sdk-javascript/tree/develop#evaluate-a-username-password-verification)
-or [`evaluateOTP`](https://github.com/IBM-Verify/adaptive-sdk-javascript/tree/develop#evaluate-an-otp-verification)
+The implementation of this function should send a request to a server using the Proxy SDK. Upon receiving the request, the server should call the Proxy SDK's [`evaluateUsernamePassword`](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript/tree/develop#evaluate-a-username-password-verification)
+or [`evaluateOTP`](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript/tree/develop#evaluate-an-otp-verification)
 methods, and respond accordingly. The method to call should depend on the instance of `FactorEvaluation` (either
 `UsernamePasswordEvaluation` or
 `OneTimePasscodeEvaluation`.

@@ -7,8 +7,8 @@
         "creationTime": "2022-06-07T23:54:55.518Z",
         "authenticationMethods": [{
             "methodType": "signature",
-            "subType": "face",
-            "id": "X0CF603F-AE9B-49CE-AD07-70F5777377DB",
+            "subType": "userPresence",
+            "id": "B0CF603F-AE9B-49CE-AD07-70F5777377DB",
             "additionalData": [
                 {
                     "name": "sampleName",
@@ -16,7 +16,7 @@
                 },
                 {
                     "name":"name",
-                    "value":"c0bf603f-ae9b-49ce-ad07-70f5777377db.biometric"
+                    "value":"b0bf603f-ae9b-49ce-ad07-70f5777377db"
                 }
             ]
         }],
@@ -27,8 +27,8 @@
         "creationTime": "2022-06-07T23:54:45.510Z",
         "authenticationMethods": [{
             "methodType": "signature",
-            "subType": "userPresence",
-            "id": "F0CF603F-AE9B-49CE-AD07-70F5777377DB",
+            "subType": "face",
+            "id": "S0CF603F-AE9B-49CE-AD07-70F5777377DB",
             "additionalData": [
                 {
                     "name": "sampleName",
@@ -36,11 +36,11 @@
                 },
                 {
                     "name":"name",
-                    "value":"b0bf603f-ae9b-49ce-ad07-70f5777377db.userPresence"
+                    "value":"c0bf603f-ae9b-49ce-ad07-70f5777377db"
                 }
             ]
         }],
-        "transactionData":"{\"originIpAddress\":\"192.168.222.222\",\"originUserAgent\":\"Mozilla Firefox 11\",\"additionalData\":[{\"name\":\"foo\",\"value\":\"bar\"},{\"name\":\"type\",\"value\":\"Sign-in\"}, {\"name\":\"originLocation\",\"value\":\"Gold Coast, Australia\"},{\"name\":\"imageURL\",\"value\":\"https://picsum.photos/200/300\"}],\"message\":\"Do you approve the transfer for $1337\",\"timestamp\":\"2022-06-07T23:54:55.518Z\"}",
+        "transactionData":"{\"originIpAddress\":\"192.168.222.222\",\"originUserAgent\":\"Mozilla Firefox 11\",\"additionalData\":[{\"name\":\"foo\",\"value\":\"bar\"}],\"message\":\"Do you approve the transfer for $1337\",\"timestamp\":\"2022-06-07T23:54:45.510Z\"}",
         "id": "2b5cdd80-3c36-4259-aa40-cfaba06ed1b6"
     }]
 }

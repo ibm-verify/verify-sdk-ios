@@ -14,14 +14,14 @@ An [example](../../Examples/authentication) application is available for the Aut
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-mobile-ios.git", from: "3.0.11")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.0.12")
 ]
 ```
 
 then in the `targets` section of the application/library, add one or more components to your `dependencies`, for example:
 
 ```swift
-// Target for Swift 5.7
+// Target for Swift 6.0
 .target(name: "MyExampleApp", dependencies: [
     .product(name: "Authentication", package: "IBM Verify")
 ],
@@ -32,7 +32,7 @@ Alternatively, you can add the package manually.
 2. Select your application project under the **PROJECT** heading
 3. Select the **Swift Packages** tab.
 4. Click on the `+` button.
-5. Enter `https://github.com/ibm-verify/verify-mobile-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
+5. Enter `https://github.com/ibm-verify/verify-sdk-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
 
 ### API documentation
 The Authentication SDK API can be reviewed [here](https://ibm-verify.github.io/ios/documentation/authentication/).

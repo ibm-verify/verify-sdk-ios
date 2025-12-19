@@ -7,6 +7,20 @@ import Authentication
 import Core
 import CryptoKit
 @testable import MFA
+import LocalAuthentication
+import Darwin // Essential for C compatibility functions
+
+
+
+class BiometricContext: LAContext {
+    func canEvaluatePolicy(_ policy: LAPolicy, error: inout NSError?) -> Bool {
+        true
+    }
+    
+    override func evaluatePolicy(_ policy: LAPolicy, localizedReason: String) async throws -> Bool {
+        true
+    }
+}
 
 // MARK: - Mock
 
@@ -68,10 +82,47 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
     }
     
+    func testEnrollFailsWhenInitializationInfoIsMissing() async {
+        // Given
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateTOTP")
+        
+        let refreshUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?metadataInResponse=true")!
+        MockURLProtocol.urls[refreshUrl] = MockHTTPResponse(response: HTTPURLResponse(url: refreshUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.refresh")
+        
+        // Where
+        let controller = MFARegistrationController(json: scanResult)
+        
+        // Then
+        XCTAssertNotNil(controller)
+        
+        // Then
+        let provider = try! await controller.initiate(with: "Cloud account", pushToken: "abc123") as? CloudRegistrationProvider
+        XCTAssertNotNil(provider)
+        
+        // Then
+        provider?.initializationInfo = nil
+        
+        do {
+            try await provider?.enrollUserPresence(savePrivateKey: MFARegistrationControllerTests.saveUserPresencePrivateKey)
+        }
+        catch let error as MFARegistrationError {
+            switch error {
+            case .invalidState:
+                XCTAssertNotNil(error)
+            default:
+                XCTFail("Unexpected error type: \(error)")
+            }
+        }
+        catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+    
     /// Test the initiation of a cloud provider by handling the enrollment event.
     func testInitializeAuthenticatorWithAccount() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiate")
         
         // Where
@@ -81,40 +132,15 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try! await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
     }
     
-    /// Test the initiation of a cloud provider with a TOTP factor.
-    func testInitializeAuthenticatorWithTOTP() async throws {
-        // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
-        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateTOTP")
-        
-        let refreshUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?metadataInResponse=false")!
-        MockURLProtocol.urls[refreshUrl] = MockHTTPResponse(response: HTTPURLResponse(url: refreshUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.refresh")
-      
-        // Where
-        let controller = MFARegistrationController(json: scanResult)
-         
-        // Then
-        XCTAssertNotNil(controller)
-        
-        // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
-        XCTAssertNotNil(provider)
-        
-        // Then
-        let authenticator = try await provider.finalize()
-        XCTAssertNotNil(authenticator)
-        XCTAssertTrue(authenticator.allowedFactors.contains(where: { $0.valueType is TOTPFactorInfo }))
-    }
-    
-    /// Test the scan and create an insance of the on-premise registration provider, then ffinalizes the authenticator with no factors.
-    func testEnrolmentsSkipTOTP() async throws {
+    /// Test the initiation of a cloud provider with no enroll signatures.
+    func testInitializeAuthenticatorNoSignatures() async throws {
         // Given
         let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
-        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateNoTOTP")
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateTOTP")
         
         let refreshUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?metadataInResponse=false")!
         MockURLProtocol.urls[refreshUrl] = MockHTTPResponse(response: HTTPURLResponse(url: refreshUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.refresh")
@@ -132,15 +158,14 @@ class CloudRegistrationProviderTests: XCTestCase {
         // Then
         let authenticator = try await provider.finalize()
         XCTAssertNotNil(authenticator)
-        
-        // Then
-        XCTAssertFalse(authenticator.allowedFactors.contains(where: { $0.valueType is TOTPFactorInfo }))
+        XCTAssertNil(authenticator.userPresence)
+        XCTAssertNil(authenticator.biometric)
     }
     
-    /// Test the scan and create an insance of the cloud registration provider, then get the next enrollment.
-    func testNextEnrollment() async throws {
+    /// Test the scan and create an insance of the cloud registration provider, then attempt to enrol user presence which is not enabled..
+    func testUserPresenceNotEnabled() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateTOTP")
         
         // Where
@@ -150,18 +175,26 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
-        if let factor = await provider.nextEnrollment() {
-            XCTAssertNotNil(factor)
+        do {
+            try await provider.enrollUserPresence()
+        }
+        catch let error as MFARegistrationError {
+            if case .signatureMethodNotEnabled(type: "User Presence") = error {
+                XCTAssertNotNil(error)
+            }
+            else {
+                XCTFail("Unexpected error type: \(error)")
+            }
         }
     }
     
-    /// Test the scan and create an insance of the cloud registration provider, then get the count of available signature enrollments.
-    func testCountOfAvailableEnrolments() async throws {
+    /// Test the scan and create an insance of the on-premise registration provider, then detemine which signatures are enabled for enrollment.
+    func testAvailableEnrolments() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateTOTP")
         
         // Where
@@ -171,17 +204,20 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try! await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then
-        XCTAssertEqual(provider.countOfAvailableEnrollments, 1)
+        XCTAssertEqual(provider.canEnrollBiometric, true)
+        
+        // Then
+        XCTAssertEqual(provider.canEnrollUserPresence, false)
     }
     
-    /// Test the scan and create an insance of the cloud registration provider, then get the next enrollments until nil.
-    func testNextEnrollmentThrowNoEnrollments() async throws {
+    /// Test the scan and create an insance of the cloud registration provider, then enroll user presence.
+    func testNextEnrollmentUserPrecenceEnrollments() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateTOTP")
         
         // Where
@@ -191,12 +227,20 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then
-        while let factor = await provider.nextEnrollment() {
-            XCTAssertNotNil(factor)
+        do {
+            try await provider?.enrollUserPresence(savePrivateKey: MFARegistrationControllerTests.saveUserPresencePrivateKey)
+        }
+        catch let error as MFARegistrationError {
+            if case .signatureMethodNotEnabled(type: "User Presence") = error {
+                XCTAssertNotNil(error)
+            }
+            else {
+                XCTFail("Unexpected error type: \(error)")
+            }
         }
     }
     
@@ -204,7 +248,7 @@ class CloudRegistrationProviderTests: XCTestCase {
     /// - note: This test uses `LaContext` to determine the biometric sensor.
     func testNextEnrollmentBiometricFactor() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateBiometry")
         
         // Where
@@ -214,19 +258,22 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then
-        let factor = await provider.nextEnrollment()
-        XCTAssertNotNil(factor)
-        XCTAssertTrue(factor!.biometricAuthentication)
+        do {
+            try await provider?.enrollUserPresence(savePrivateKey: MFARegistrationControllerTests.saveUserPresencePrivateKey)
+        }
+        catch {
+            XCTAssert(error is MFARegistrationError)
+        }
     }
     
     /// Test the initiation, get the next enrollment, then enroll the face factor.
     func testEnrollFaceSuccess() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateFace")
         
         let enrollmentUrl = URL(string: "\(urlBase)/v1.0/authnmethods/signatures")!
@@ -239,22 +286,22 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then
-        let factor = await provider.nextEnrollment()
-        XCTAssertNotNil(factor)
-        XCTAssertTrue(factor!.biometricAuthentication)
-        
-        // Then
-        try await provider.enroll(with: "biometric", publicKey: "MIICzDCCAbQCCQDH8Gv", signedData: "f536975d06c")
+        do {
+            try await provider?.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID required")
+        }
+        catch {
+            XCTAssert(error is MFARegistrationError)
+        }
     }
     
     /// Test the initiation, get the next enrollment, then enroll the fingerprint factor.
     func testEnrollFingerprintSuccess() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateFingerprint")
         
         let enrollmentUrl = URL(string: "\(urlBase)/v1.0/authnmethods/signatures")!
@@ -267,22 +314,22 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then
-        let factor = await provider.nextEnrollment()
-        XCTAssertNotNil(factor)
-        XCTAssertTrue(factor!.biometricAuthentication)
-        
-        // Then
-        try await provider.enroll(with: "biometric", publicKey: "MIICzDCCAbQCCQDH8Gv", signedData: "f536975d06c")
+        do {
+            try await provider?.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID required")
+        }
+        catch {
+            XCTAssert(error is MFARegistrationError)
+        }
     }
     
     /// Test the initiation, get the next enrollment, then enroll the user presence factor.
     func testEnrollUserPresenceSuccess() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateUserPresence")
         
         let enrollmentUrl = URL(string: "\(urlBase)/v1.0/authnmethods/signatures")!
@@ -295,22 +342,22 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then
-        let factor = await provider.nextEnrollment()
-        XCTAssertNotNil(factor)
-        XCTAssertFalse(factor!.biometricAuthentication)
-    
-        // Then
-        try await provider.enroll(with: "user presence", publicKey: "MIICzDCCAbQCCQDH8Gv", signedData: "f536975d06c")
+        do {
+            try await provider?.enrollUserPresence(savePrivateKey: MFARegistrationControllerTests.saveUserPresencePrivateKey)
+        }
+        catch {
+            XCTAssert(error is MFARegistrationError)
+        }
     }
     
     /// Test the scan and create an insance of the cloud registration provider, then get the next enrollment with an error.
     func testEnrollmentError() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiate")
         
         let enrollmentUrl = URL(string: "\(urlBase)/v1.0/authnmethods/signatures")!
@@ -323,15 +370,12 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try! await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then
         do {
-            let factor = await provider.nextEnrollment()
-            XCTAssertNotNil(factor)
-                
-            try await provider.enroll(with: "biometric", publicKey: "MIICzDCCAbQCCQDH8Gv", signedData: "f536975d06c")
+            try await provider.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID Required")
         }
         catch let error {
             XCTAssertTrue(error is URLSessionError)
@@ -341,7 +385,7 @@ class CloudRegistrationProviderTests: XCTestCase {
     /// Test the finalization of the a registration with user presence.
     func testFinalizeRegistration() async throws -> any MFAAuthenticatorDescriptor {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiate")
         
         let enrollmentUrl = URL(string: "\(urlBase)/v1.0/authnmethods/signatures")!
@@ -357,68 +401,27 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then
-        let factor = await provider.nextEnrollment()
-        XCTAssertNotNil(factor)
-        
-        // Then
-        try await provider.enroll(with: "Factor", publicKey: "abc123", signedData: "abc123")
+        try await provider.enrollUserPresence()
         
         // Then
         let authenticator = try await provider.finalize()
         XCTAssertNotNil(authenticator)
         XCTAssertEqual(authenticator.token.accessToken, "a1b2c3")
-        XCTAssertTrue(authenticator.allowedFactors.count == 1)
-        XCTAssertTrue(authenticator.allowedFactors.contains(where: { $0.valueType is UserPresenceFactorInfo }))
+        XCTAssertNotNil(authenticator.userPresence)
         
         // Then
         return authenticator
     }
     
-    /// Test the finalization of the a registration with face.
-    func testFinalizeRegistrationWithFace() async throws  {
-        // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
-        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateFace")
         
-        let enrollmentUrl = URL(string: "\(urlBase)/v1.0/authnmethods/signatures")!
-        MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 201, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.enrollmentFace")
-      
-        let refreshUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?metadataInResponse=false")!
-        MockURLProtocol.urls[refreshUrl] = MockHTTPResponse(response: HTTPURLResponse(url: refreshUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.refresh")
-        
-        // Where
-        let controller = MFARegistrationController(json: scanResult)
-         
-        // Then
-        XCTAssertNotNil(controller)
-        
-        // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
-        XCTAssertNotNil(provider)
-        
-        // Then
-        let factor = await provider.nextEnrollment()
-        XCTAssertNotNil(factor)
-        
-        // Then
-        try await provider.enroll(with: "Factor", publicKey: "abc123", signedData: "abc123")
-        
-        // Then
-        let authenticator = try await provider.finalize()
-        XCTAssertNotNil(authenticator)
-        XCTAssertEqual(authenticator.token.accessToken, "a1b2c3")
-        XCTAssertTrue(authenticator.allowedFactors.count == 1)
-        XCTAssertTrue(authenticator.allowedFactors.contains(where: { $0.valueType is FaceFactorInfo }))
-    }
-    
     /// Test the finalization of the a registration with face and generate keys.
     func testFinalizeRegistrationWithKeys() async throws  {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateFace")
         
         let enrollmentUrl = URL(string: "\(urlBase)/v1.0/authnmethods/signatures")!
@@ -434,28 +437,24 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then
-        let factor = await provider.nextEnrollment()
-        XCTAssertNotNil(factor)
+        try await provider?.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID Required")
         
         // Then
-        try await provider.enroll()
-        
-        // Then
-        let authenticator = try await provider.finalize()
+        let authenticator = try? await provider?.finalize()
         XCTAssertNotNil(authenticator)
-        XCTAssertEqual(authenticator.token.accessToken, "a1b2c3")
-        XCTAssertTrue(authenticator.allowedFactors.count == 1)
-        XCTAssertTrue(authenticator.allowedFactors.contains(where: { $0.valueType is FaceFactorInfo }))
+        XCTAssertEqual(authenticator?.token.accessToken, "a1b2c3")
+        XCTAssertNil(authenticator?.userPresence)
+        XCTAssertNotNil(authenticator?.biometric)
     }
     
     /// Test the finalization of the a registration
     func testFinalizeRegistrationUnderlyingError() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiate")
         
         let refreshUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?metadataInResponse=false")!
@@ -468,7 +467,7 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try! await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
         // Then

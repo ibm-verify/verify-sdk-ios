@@ -5,7 +5,7 @@
 import Foundation
 
 /// HMAC-based one-time password (HOTP) is a one-time passcode based on hash-based message authentication codes (HMAC) where each generated code is a single use authentication attempt.
-public struct HOTPFactorInfo: Factor {
+public struct HOTPFactorInfo: Factor, Equatable {
     /// Initializes the OTP info object to use a hash-based message authentication.
     /// - Parameters:
     ///   - secret: The secret or seed value Base32  encoded.
@@ -14,8 +14,8 @@ public struct HOTPFactorInfo: Factor {
     ///   - counter: The counter for `hotp` generation.  Default value is `1`.
     ///
     /// - Remark: A `digits` value less than 6 is not recommended.  Reducing the number of digits for OTP validation presents a potential security risk.
-    public init(with secret: String, digits: Int = 6, algorithm: HashAlgorithmType = .sha1, counter: Int = 1) {
-        self.id = UUID()
+    public init(with secret: String, digits: Int = 6, algorithm: SigningAlgorithm = .sha1, counter: Int = 1) {
+        self.id = UUID().uuidString
         self.secret = secret
         self.algorithm = algorithm
         self.counter = counter > 0 ? counter : 1
@@ -24,13 +24,15 @@ public struct HOTPFactorInfo: Factor {
         self.digits = digits > 0 ? digits : 6
     }
     
-    public let id: UUID
+    public let id: String
     
     public let displayName = "HMAC-based one-time password (HOTP)"
-        
+    
+    public var imageName = "stopwatch"
+    
     public let secret: String
     
-    public let algorithm: HashAlgorithmType
+    public let algorithm: SigningAlgorithm
                                                      
     public let digits: Int
     

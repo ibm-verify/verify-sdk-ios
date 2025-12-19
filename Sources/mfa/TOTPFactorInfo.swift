@@ -5,7 +5,7 @@
 import Foundation
 
 /// Time-based one-time password (TOTP) that generates a one-time passcode using the current time as a source of uniqueness.
-public struct TOTPFactorInfo: Factor {
+public struct TOTPFactorInfo: Factor, Equatable {
     /// Initializes the OTP info object to use a one-time passcode based on a time interval.
     /// - Parameters:
     ///   - secret: The secret or seed value Base32  encoded.
@@ -14,24 +14,25 @@ public struct TOTPFactorInfo: Factor {
     ///   - period: The interval in seconds for `totp` generation.  Default value is `30`.
     ///   
     /// - Remark: A `digits` value less than 6 is not recommended.  Reducing the number of digits for OTP validation presents a potential security risk.
-    public init(with secret: String, digits: Int = 6, algorithm: HashAlgorithmType = .sha1, period: Int = 30) {
-        self.id = UUID()
+    public init(with secret: String, digits: Int = 6, algorithm: SigningAlgorithm = .sha1, period: Int = 30) {
+        self.id = UUID().uuidString
         self.secret = secret
         self.algorithm = algorithm
         self.period = (period >= 10 && period <= 300) ? period : 30
         
         // Assign the digits value or default to 6.
-        // Assign the digits value or default to 6.
         self.digits = digits > 0 ? digits : 6
     }
     
-    public let id: UUID
+    public let id: String
     
     public let displayName = "Time-based one-time password (TOTP)"
     
+    public var imageName = "stopwatch"
+    
     public let secret: String
     
-    public let algorithm: HashAlgorithmType
+    public let algorithm: SigningAlgorithm
     
     public let digits: Int
     
