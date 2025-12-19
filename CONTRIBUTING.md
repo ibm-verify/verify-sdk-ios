@@ -3,12 +3,11 @@
 Review the following guidelines for submitting questions, issues, or changes to this repository.
 
 ## Coding Style
-
 This SDK follows coding style based on [API Design Guidelines](https://swift.org/documentation/api-design-guidelines/) for source code in the Swift Programming Language.
 
 ## Issues and Questions
 
-If you encounter an issue, have a question or want to suggest an enhancement to the IBM Verify SDK, you are welcome to submit a [request](https://github.com/ibm-verify/verify-mobile-ios/issues).
+If you encounter an issue, have a question or want to suggest an enhancement to the IBM Verify SDK, you are welcome to submit a [request](https://github.com/ibm-security-verify/verify-sdk-ios/issues).
 Before that, please search for similar issues. It's possible somebody has encountered this issue already.
 
 ## Pull Requests
@@ -23,14 +22,17 @@ If you want to contribute to the repository, here's a quick guide:
 4. Commit your changes
 5. Push to your fork and submit a pull request to the `main` branch
 
+
 ## Generating documentation
 
-To generate the documentation for the SDK, in Xcode 14.0 or greater, select Product > Build Documentation.  The output `verify-sdk-ios` will appear under **Workspace Documentation**, or [on-line](https://ibm-verify.github.io/index.html)
+To generate the documentation for the SDK, in Xcode 14.0 or greater, select Product > Build Documentation.  The output `verify-sdk-ios` will appear under **Workspace Documentation**, or [on-line](https://ibm-security-verify.github.io/index.html)
+
 
 ## Additional Resources
 
 * [General GitHub documentation](https://help.github.com/)
 * [GitHub pull request documentation](https://help.github.com/send-pull-requests/)
+
 
 # Developer's Certificate of Origin 1.1
 

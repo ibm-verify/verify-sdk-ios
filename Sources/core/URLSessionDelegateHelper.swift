@@ -23,8 +23,8 @@ public final class SelfSignedCertificateDelegate: NSObject, URLSessionDelegate {
     
     /// Requests credentials from the delegate in response to a session-level authentication request from the remote server.
     /// - Parameters:
-    ///   - : The `URLSession` to manage the request.
-    ///  - challenge: An object that contains the request for authentication.
+    ///   - session: The session containing the task that requested authentication.
+    ///   - challenge: An object that contains the request for authentication.
     ///   - completionHandler: A handler that your delegate method must call.
     /// - Remark: This completion handler uses `credential`.
     public func urlSession(_: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
@@ -70,9 +70,8 @@ public final class PinnedCertificateDelegate: NSObject, URLSessionDelegate {
 
     /// Requests credentials from the delegate in response to a session-level authentication request from the remote server.
     /// - Parameters:
-    ///   - : The session containing the task that requested authentication.
-    ///   - : <#parameter description#>
-    ///  - challenge: An object that contains the request for authentication.
+    ///   - session: The session containing the task that requested authentication.
+    ///   - challenge: An object that contains the request for authentication.
     ///   - completionHandler: A handler that your delegate method must call.
     public func urlSession(_: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         if let error = challenge.error {

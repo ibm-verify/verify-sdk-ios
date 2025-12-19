@@ -6,6 +6,9 @@ import Foundation
 import Authentication
 import Core
 
+/// A type that indicates when the cloud service fails.
+public typealias CloudServiceError = MFAServiceError
+
 /// The `CloudAuthenticatorService` enables authenticators to perform transaction, login and token refresh operations.
 public actor CloudAuthenticatorService: MFAServiceDescriptor {
     /// The enumerated type to apply to retrieving cloud transaction data.
@@ -17,7 +20,7 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
 
         /// Includes id, creationTime, transactionData and authenticationMethods when the transaction pending.
         ///
-        /// Search is by id={transactionID}.
+        /// Search is by id={transactionId}.
         case pendingByIdentifier = "?filter=id,creationTime,transactionData,authenticationMethods&search=state=\u{22}PENDING\u{22}&id=\u{22}%@\u{22}"
     }
     
@@ -57,7 +60,8 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
     
     /// Refresh the OAuth token associated with the registered authenticator.
     ///
-    /// When the `transactionID` is supplied, information relating to that transaction identifier is returned while in a PENDING state.  Otherwise the next transaction is returned.
+    /// The resulting access token is automatically updated in the instance of the `CloudAuthenticatorService` for subsequent operations.
+    ///
     /// ```swift
     /// // Using the authenticator properties, create a new CloudAuthenticatorService.
     /// let service = CloudAuthenticatorService(with: authenticator.token.accessToken, refreshUri: authenticator.refreshUri, transactionUri: authenticator.transactionUri)
@@ -90,12 +94,12 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
         var attributes = MFAAttributeInfo.dictionary()
         attributes.removeValue(forKey: "applicationName")
         
-        if let accountName = accountName {
-            attributes["accountName"] = accountName
-        }
+        attributes["accountName"] = accountName
+        attributes["pushToken"] = pushToken
         
-        if let pushToken = pushToken {
-            attributes["pushToken"] = pushToken
+        // Merge any additional data provided by the caller.
+        if let additionalData {
+            attributes.merge(additionalData) { (_, new) in new }
         }
         
         let data: [String: Any] = [
@@ -103,26 +107,32 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
             "attributes": attributes
         ]
         
-        // Convert body dictionary to Data.
-        guard let body = try? JSONSerialization.data(withJSONObject: data, options: []) else {
-            throw MFAServiceError.serializationFailed
+        // Convert the body dictionary to Data.
+        let body: Data
+        do {
+            body = try JSONSerialization.data(withJSONObject: data)
+        }
+        catch {
+            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Failed to convert data to UTF-8 string.", bundle: .module))
         }
         
-        // Construct the request to decode and return the token.
+        // Construct and perform the network request.
         let resource = HTTPResource<TokenInfo>(json: .post, url: refreshUri, body: body)
-        
-        // Perfom the request.
         let result = try await self.urlSession.dataTask(for: resource)
         
-        // Update the internal accessToken and return
+        // Update the internal accessToken and return the result.
         self.accessToken = result.accessToken
         
         return result
     }
     
-    /// Retrieve the next transaction that is associated with an authenticator registration.
+    /// Fetches the next pending transaction, optionally filtered by an identifier.
     ///
-    /// When a `transactionID` is supplied, information relating to that transaction identifier is returned while in a PENDING state.  Otherwise the next transaction is returned.
+    /// - Parameter transactionId: An optional ID to fetch a specific transaction.
+    /// - Throws: `MFAServiceError` if the URL cannot be constructed.
+    /// - Returns: A `NextTransactionInfo` object with the transaction details.
+    ///
+    /// When a `transactionId` is supplied, information relating to that transaction identifier is returned while in a PENDING state.  Otherwise the next transaction is returned.
     /// ```swift
     /// // Using the authenticator properties, create a new CloudAuthenticatorService.
     /// let service = CloudAuthenticatorService(with: authenticator.token.accessToken, refreshUri: authenticator.refreshUri, transactionUri: authenticator.transactionUri)
@@ -131,24 +141,36 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
     /// let result = try await service.nextTransaction()
     /// print(result)
     /// ```
-    ///
-    /// - Parameters:
-    ///   - transactionID: The transaction verification identifier.
-    public func nextTransaction(with transactionID: String? = nil) async throws -> NextTransactionInfo {
-        // Update the transactionUri with a query parameter to filter the response.
-        var transactionUri = URL(string: "\(self.transactionUri.absoluteString)\(TransactionFilter.nextPending.rawValue)")!
+    public func nextTransaction(with transactionId: String? = nil) async throws -> NextTransactionInfo {
+        // The URL for the request.
+        let url: URL
         
-        if let transactionID = transactionID {
-            let allowedCharacterSet = CharacterSet(charactersIn: "\"").inverted
-            let queryString = String(format: "\(TransactionFilter.pendingByIdentifier.rawValue)", transactionID)
-            transactionUri = URL(string: "\(self.transactionUri.absoluteString)/\(queryString.addingPercentEncoding(withAllowedCharacters: allowedCharacterSet)!)")!
+        // Use a conditional to handle URL construction based on the transactionId.
+        if let transactionId = transactionId {
+            // Append the transaction ID to the query string for the specified filter.
+            let queryString = String(format: TransactionFilter.pendingByIdentifier.rawValue, transactionId)
+            
+            // Construct the final URL by combining the base URI with the query string.
+            guard let finalURL = URL(string: "\(self.transactionUri.absoluteString)\(queryString)") else {
+                throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Failed to construct valid URL with transaction ID '\(transactionId)'.", bundle: .module))
+            }
+            url = finalURL
+        }
+        else {
+            // If no transaction ID is provided, use the next pending filter.
+            guard let finalURL = URL(string: "\(self.transactionUri.absoluteString)\(TransactionFilter.nextPending.rawValue)") else {
+                throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Failed to construct valid URL for next pending transaction.", bundle: .module))
+            }
+            url = finalURL
         }
         
         // Create the request headers.
         let headers = ["Authorization": "Bearer \(self.accessToken)"]
-        let resource = HTTPResource<NextTransactionInfo>(.get, url: transactionUri, accept: .json, headers: headers, parse: parsePendingTransaction)
         
-        // Perfom the request.
+        // Construct the resource with the final URL.
+        let resource = HTTPResource<NextTransactionInfo>(.get, url: url, accept: .json, headers: headers, parse: parsePendingTransaction)
+        
+        // Perform the request.
         let result = try await self.urlSession.dataTask(for: resource)
         self.currentPendingTransaction = result.current
         
@@ -165,20 +187,25 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
             self.currentPendingTransaction = nil
         }
         
+        try await completeTransaction(transaction: pendingTransaction, action: userAction, signedData: signedData)
+    }
+    
+    public func completeTransaction(transaction pendingTransaction: PendingTransactionInfo, action userAction: UserAction, signedData: String) async throws {
+        
         // Create the request parameters.
         var data: [[String: Any]] = [[:]]
         
         // Only verify operations where we pass the signedData.
         if userAction == .verify {
-            data = [["id": pendingTransaction.factorID.uuidString.lowercased(), "userAction": userAction.rawValue, "signedData": signedData]]
+            data = [["id": pendingTransaction.factorId.lowercased(), "userAction": userAction.rawValue, "signedData": signedData]]
         }
         else {
-            data = [["id": pendingTransaction.factorID.uuidString.lowercased(), "userAction": userAction.rawValue]]
+            data = [["id": pendingTransaction.factorId.lowercased(), "userAction": userAction.rawValue]]
         }
         
         // Covert body dictionary to Data.
         guard let body = try? JSONSerialization.data(withJSONObject: data, options: []) else {
-            throw MFAServiceError.serializationFailed
+            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from transaction response.", bundle: .module))
         }
          
         // Create the request headers.
@@ -223,6 +250,16 @@ extension CloudAuthenticatorService {
             let id: String
             let methodType: String
             let subType: String
+            let additionalData: [AdditionalDataItem]
+            
+            var keyName: String? {
+                additionalData.first(where: { $0.name == "name" })?.value
+            }
+            
+            struct AdditionalDataItem: Decodable {
+                let name: String
+                let value: String
+            }
         }
 
         // MARK: Initializers
@@ -247,37 +284,41 @@ extension CloudAuthenticatorService {
     /// - Returns: A value that represents either a success or a failure, including an associated value in each case.
     private func parsePendingTransaction(data: Data?, response: URLResponse?) -> Result<NextTransactionInfo, Error> {
         guard let data = data, !data.isEmpty else {
-            return Result.failure(MFAServiceError.invalidDataResponse)
+            return .failure(MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from transaction response.")))
         }
         
-        // Parse the transaction data.
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8061FormatterBehavior)
+        let decodedResult: TransactionResult
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8061FormatterBehavior)
+            decodedResult = try decoder.decode(TransactionResult.self, from: data)
+        }
+        catch {
+            return .failure(MFAServiceError.dataDecodingFailed(reason: error.localizedDescription))
+        }
+
+        // Check if there are no pending transactions.
+        guard decodedResult.count > 0 else {
+            return .success(NextTransactionInfo(current: nil, countOfPendingTransactions: 0))
+        }
         
-        guard let result = try? decoder.decode(TransactionResult.self, from: data) else {
-            return Result.failure(MFAServiceError.decodingFailed)
+        // Create the pending transaction and return the result.
+        if let pendingTransaction = createPendingTransaction(using: decodedResult) {
+            return .success(NextTransactionInfo(current: pendingTransaction, countOfPendingTransactions: decodedResult.count))
         }
-
-        // Check if there are no verification, return a nil.
-        if result.count == 0 {
-            return Result.success(NextTransactionInfo(current: nil, countOfPendingTransactions: result.count))
-        }
-
-        // Create the pending transaction.
-        guard let pendingTransaction = createPendingTransaction(using: result) else {
-            return Result.failure(MFAServiceError.unableToCreateTransaction)
-        }
-
-        return Result.success(NextTransactionInfo(pendingTransaction, result.count))
+        
+        return .failure(MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from transaction response.")))
     }
     
     /// Creates a `PendingTransaction` based on the parsed transaction and attribute data.
-    /// - parameter result: The `CloudTransactionResult` containing the parsed data.
-    /// - parameter transactionId: The identifier of the transaction.
-    /// - remark: The `CloudTransactionResult.verifications` have been sorted by `creationDate`.
+    ///
+    /// - Parameters:
+    ///    - result: The `CloudTransactionResult` containing the parsed data.
+    /// - Throws: `MFAServiceError` if required data is missing.
+    /// - Returns: A `PendingTransactionInfo` object.
     private func createPendingTransaction(using result: TransactionResult) -> PendingTransactionInfo? {
-        // 1. Get the first transaction.
-        guard let verificationInfo = result.verifications?.first else {
+        // 1. Get the first transaction and related method.
+        guard let verificationInfo = result.verifications?.first, let methodInfo = verificationInfo.methodInfo.first else {
             return nil
         }
 
@@ -286,82 +327,75 @@ extension CloudAuthenticatorService {
 
         // 3. Get the message to display.
         let message = transactionMessage(using: verificationInfo.transactionInfo)
-
-        // 4. Construct the factor that is used to lookup the private key from the Keychain.
-        guard let methodInfo = verificationInfo.methodInfo.first else {
-            return nil
-        }
-
         // 4. Construct the transaction context information into additional data.
         let additionalData = createAdditionalData(using: verificationInfo.transactionInfo)
 
         // 5. Construct the pending transaction taking data from the transaction, attribute and authentication info.
-        let result = PendingTransactionInfo(id: verificationInfo.id,
+        let pendingTransactionInfo = PendingTransactionInfo(id: verificationInfo.id,
                                             message: message,
                                             postbackUri: postbackUri,
-                                            factorID: UUID(uuidString: methodInfo.id) ?? UUID(),
+                                            keyName: methodInfo.keyName ?? "",
+                                            factorId: methodInfo.id,
                                             factorType: methodInfo.subType,
                                             dataToSign: verificationInfo.transactionInfo,
                                             timeStamp: verificationInfo.creationTime,
-                                            additionalData: additionalData)
+                                            additionalData: additionalData
+        )
 
-        return result
+        return pendingTransactionInfo
     }
 
     /// Creates a dictionary of available transaction data from the `CloudTransactionResult`.
-    /// - parameter json: A JSON string representing the transaction data `VerificationInfo`.
-    /// - returns: An array of `TransactionAttribute` and corresponding value.
+    /// - Parameters:
+    ///   - json: A JSON string representing the transaction data `VerificationInfo`.
+    /// - Returns: An array of `TransactionAttribute` and corresponding value.
     private func createAdditionalData(using json: String) -> [TransactionAttribute: String] {
         var result: [TransactionAttribute: String] = [:]
 
         // Convert the String into Data and serialize to JSON object.
-        let value = json.data(using: .utf8)!
-        guard var data = try? JSONSerialization.jsonObject(with: value, options: []) as? [String: Any] else {
+        guard let jsonData = json.data(using: .utf8), var data = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any] else {
             return result
         }
         
         // Add the IP address to the result, then remove from dictionary.
         if let ipAddress = data["originIpAddress"] as? String {
-            result.updateValue(ipAddress, forKey: .ipAddress)
+            result[.ipAddress] = ipAddress
             data.removeValue(forKey: "originIpAddress")
         }
 
         // Add the user-agent to the result, then remove from dictionary.
         if let userAgent = data["originUserAgent"] as? String {
-            result.updateValue(userAgent, forKey: .userAgent)
+            result[.userAgent] = userAgent
             data.removeValue(forKey: "originUserAgent")
         }
 
         // Add the default type (of request) to the result.  Might be overriden if specified in additionalData.
-        result.updateValue(NSLocalizedString("PendingRequestTypeDefault", bundle: Bundle.module, comment: ""), forKey: .type)
+        result[.type] = String(localized: "Request", bundle: .module)
 
-        // Assign the remaining values to TransactionAttribute.custom
-        if var additionalData = data["additionalData"] as? [[String: String]] {
-            additionalData.forEach { item in
-                // Add the type to the result, then remove from dictionary.
-                if item["name"] == "type", let index = additionalData.firstIndex(where: { $0["name"] == "type" }), let type = item["value"] {
-                    result.updateValue(type, forKey: .type)
-                    additionalData.remove(at: index)
+        // Process the additional data array.
+        if let additionalData = data["additionalData"] as? [[String: String]] {
+            var customData: [[String: String]] = []
+            for item in additionalData {
+                guard let name = item["name"], let value = item["value"] else {
+                    continue
                 }
-
-                // Add the location to the result, then remove from dictionary.
-                if item["name"] == "originLocation", let index = additionalData.firstIndex(where: { $0["name"] == "originLocation" }), let location = item["value"] {
-                    result.updateValue(location, forKey: .location)
-                    additionalData.remove(at: index)
+               
+                switch name {
+                case "type":
+                   result[.type] = value
+                case "originLocation":
+                    result[.location] = value
+                case "imageURL":
+                    result[.image] = value
+                default:
+                    customData.append(item)
                 }
+           }
 
-                // Add the image to the result, then remove from dictionary.
-                if item["name"] == "imageURL", let index = additionalData.firstIndex(where: { $0["name"] == "imageURL" }), let imageUrl = item["value"] {
-                    result.updateValue(imageUrl, forKey: .image)
-                    additionalData.remove(at: index)
-                }
-            }
-
-            // Assign the remaining values to TransactionAttribute.custom
-            if !additionalData.isEmpty {
-                let customData = try! JSONSerialization.data(withJSONObject: additionalData)
-                let customJson = String(data: customData, encoding: .utf8)!
-                result.updateValue(customJson, forKey: .custom)
+            // Assign remaining values to TransactionAttribute.custom.
+            if !customData.isEmpty, let customJsonData = try? JSONSerialization.data(withJSONObject: customData) {
+                let customJsonString = String(data: customJsonData, encoding: .utf8)
+                result[.custom] = customJsonString
             }
         }
 
@@ -369,19 +403,14 @@ extension CloudAuthenticatorService {
     }
 
     /// Gets the message associated with the transaction data from the `TransactionResult`.
-    /// - parameter json: A JSON string representing the transaction data `VerificationInfo`.
-    /// - returns: The transaction message or the default pending transaction message.
+    /// - Parameters:
+    ///   - value: A JSON string representing the transaction data `VerificationInfo`.
+    /// - Returns: The transaction message or the default pending transaction message.
     private func transactionMessage(using value: String) -> String {
-        let data = value.data(using: .utf8)!
-        
-        guard let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
-            return NSLocalizedString("PendingRequestMessageDefault", bundle: Bundle.module, comment: "")
+        guard let jsonData = value.data(using: .utf8), let data = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any], let message = data["message"] as? String else {
+            return String(localized: "You have a pending request.", bundle: .module)
         }
-        
-        guard let message = json["message"] as? String else {
-            return NSLocalizedString("PendingRequestMessageDefault", bundle: Bundle.module, comment: "")
-        }
-
+                
         return message
     }
 }

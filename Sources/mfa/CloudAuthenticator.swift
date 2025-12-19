@@ -14,8 +14,9 @@ public struct CloudAuthenticator: MFAAuthenticatorDescriptor {
     public let id: String
     public let serviceName: String
     public var accountName: String
-    public let allowedFactors: [FactorType]
     public var publicKeyCertificate: String?
+    public private(set) var userPresence: UserPresenceFactorInfo?
+    public private(set) var biometric: BiometricFactorInfo?
     
     /// A key value pair for configuring custom attributes of the authenticator.
     public let customAttributes: [String: String]

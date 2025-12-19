@@ -180,7 +180,7 @@ public struct PublicKeyCredentialUserEntity: Codable {
     }
     
     /// Encodes this value into the given encoder.
-    /// - Parameter encoder: The encoder to write data to.
+    /// - Parameter to: The encoder to write data to.
    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
@@ -265,7 +265,7 @@ public struct AuthenticatorAttestationResponse: AuthenticatorResponse {
     public var attestationObject: [UInt8]
     
     /// Encodes this value into the given encoder.
-    /// - Parameter encoder: The encoder to write data to.
+    /// - Parameter to: The encoder to write data to.
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
@@ -294,7 +294,7 @@ public struct AuthenticatorAssertionResponse: AuthenticatorResponse {
     public var userHandle: [UInt8]?
     
     /// Encodes this value into the given encoder.
-    /// - Parameter encoder: The encoder to write data to.
+    /// - Parameter to: The encoder to write data to.
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         

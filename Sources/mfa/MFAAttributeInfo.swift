@@ -109,6 +109,42 @@ public enum MFAAttributeInfo {
         }
     }
     
+    /// Returns a string describing the biometric authentication type available on the device.
+    ///
+    /// Using `LAContext` to evaluate the device's biometric capabilities. It returns `"Face ID"` if the device supports Face ID, `"Touch ID"` if it supports Touch ID,
+    /// or `"None"` if no biometric authentication is available.
+    public static var biometryName: String {
+        get {
+            laContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+            switch laContext.biometryType {
+            case .faceID:
+                return String(localized: "Face ID", bundle: .module)
+            case .touchID:
+                return String(localized: "Touch ID", bundle: .module)
+            default:
+                return String(localized: "None", bundle: .module)
+            }
+        }
+    }
+    
+    /// Returns a string describing the biometric authentication image from SF Symbols available on the device.
+    ///
+    /// Usings `LAContext` to evaluate the device's biometric capabilities. It returns `"faceid"` if the device supports Face ID, `"touchid"` if it supports Touch ID,
+    /// or `"None"` if no biometric authentication is available.
+    public static var biometryImage: String {
+        get {
+            laContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+            switch laContext.biometryType {
+            case .faceID:
+                return "faceid"
+            case .touchID:
+                return "touchid"
+            default:
+                return ""
+            }
+        }
+    }
+    
     // MARK: - Application information
     
     /// The unique string that identifies the app.
@@ -136,7 +172,7 @@ public enum MFAAttributeInfo {
     }
     
     /// The release or version number of the framework.
-    /// - Remark: This value represents the latest [Github release version](https://github.com/ibm-verify/verify-mobile-ios/releases/tag).
+    /// - Remark: This value represents the latest [Github release version](https://github.com/ibm-security-verify/verify-sdk-ios/releases/tag).
     public static var frameworkVersion: String {
         get {
             return "3.0.5"

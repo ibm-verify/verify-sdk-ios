@@ -5,60 +5,93 @@
 import Foundation
 import Core
 import CryptoKit
+import LocalAuthentication
 
 // MARK: Enums
 
-/// A type that indicates when a registration fails.
-public enum MFARegistrationError: Error, LocalizedError, Equatable {
-    /// Returns a Boolean value indicating whether two values are equal.
-    /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
-    public static func == (lhs: MFARegistrationError, rhs: MFARegistrationError) -> Bool {
-        return lhs.localizedDescription == rhs.localizedDescription
-    }
+/// A type that indicates errors that can occur during multi-factor authentication (MFA) registration.
+public enum MFARegistrationError: Error, LocalizedError {
+    /// An error that occurs when a JSON value fails to decode into the expected type.
+    case dataDecodingFailed(reason: String)
     
-    /// An error that occurs when a JSON value fails to parse as the specified type.
-    case failedToParse
+    /// The provided registration data is in an invalid format.
+    case invalidRegistrationData(reason: String)
     
-    /// Invalid JSON format to create an ``MFARegistrationDescriptor``.
-    case invalidFormat
+    /// The registration has not been initialized. Please call initiate() first.
+    case invalidState
+    
+    /// The provided algorithm is not supported by the factor.
+    case invalidAlgorithm(reason: String)
     
     /// An error that occurs when the registration provider has no factors available for enrollment.
     case noEnrollableFactors
     
-    /// An error occured enrolling the factor.
-    case enrollmentFailed
+    /// The signature method has not been enabled.
+    case signatureMethodNotEnabled(type: String)
     
-    /// The initialization fails for some reason (for example if data does not represent valid data for encoding).
+    /// The enrollment process for the factor failed. The associated value provides the underlying error.
+    case enrollmentFailed(reason: String)
+    
+    /// The initialization of data fails (e.g., data is not valid for encoding).
     case dataInitializationFailed
     
     /// An error that occurs when the `authenticator_id` is missing from the OAuth token.
     case missingAuthenticatorIdentifier
     
-    /// Invalid multi-factor registration data.
-    case invalidRegistrationData
-
-    /// A general registration error ocurred.
+    /// Biometry is not available or not configured on the device.
+    case biometryFailed(reason: String)
+    
+    /// Biometric authentication failed (e.g., user canceled, face not recognized).
+    case failedBiometryVerification(reason: String)
+    
+    /// A general error that occurred during registration. The associated value provides the underlying error.
     case underlyingError(error: Error)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .dataDecodingFailed(let reason):
+            return String(localized: "The received data could not be parsed. \(reason)", bundle: .module)
+        case .invalidRegistrationData(let reason):
+            return String(localized: "The registration data is invalid. \(reason)", bundle: .module)
+        case .invalidState:
+            return String(localized: "The registration has not been initialized. Please call initiate() first.", bundle: .module)
+        case .invalidAlgorithm(let reason):
+            return reason
+        case .noEnrollableFactors:
+            return String(localized: "No factors are available for enrollment.", bundle: .module)
+        case .signatureMethodNotEnabled(let type):
+            return String(localized: "Signature method '\(type)' is not enabled.", bundle: .module)
+        case .enrollmentFailed(let reason):
+            return reason
+        case .dataInitializationFailed:
+            return String(localized:"Failed to initialize registration data.", bundle: .module)
+        case .missingAuthenticatorIdentifier:
+            return String(localized: "The authenticator identifier is missing from the token.", bundle: .module)
+        case .biometryFailed(let reason):
+            return reason
+        case .failedBiometryVerification(reason: let reason):
+            return reason
+        case .underlyingError(let error):
+            return String(localized: "An error occured. \(error.localizedDescription)", bundle: .module)
+        }
+    }
 }
 
 // MARK: - Alias
 
-/// A type that represents an enrollable signature.
+/// A tuple representing a signature method identifier and its subtype.
 ///
-/// `EnrollableSignature` is a type alias for specifying the use of public-key cryptography as a second factor to authenticate an external entity.
-/// - Parameters:
-///   - biometricAuthentication: A flag to indicate the user should be prompted for biometric authenticate before saving the private key.
-///   - algorithm: The  hash algorithm to use when generating the keys.
-///   - dataToSign: A value that is to be signed with the generated private key.
-public typealias EnrollableSignature = (biometricAuthentication: Bool, algorithm: HashAlgorithmType, dataToSign: String)
+/// This typealias is used to group the primary key for a signature method (`methodKey`) with its corresponding subtype (`subType`).
+///
+/// - `methodKey`: The key used to identify the signature method (e.g., `"signature_face"`).
+/// - `subType`: A more specific subtype or variant of the method (e.g., `"face"`).
+typealias EnrollableSignature = (methodKey: String, subType: String)
 
 // MARK: - Protocols
 
 /// An interface that registration providers implement to perform enrollment operations.
 public protocol MFARegistrationDescriptor {
-    associatedtype Authenticator: MFAAuthenticatorDescriptor
+    associatedtype Authenticator: MFAAuthenticatorDescriptor & Codable
     
     /// A token that identifies the device to Apple Push Notification Service (APNS).
     ///
@@ -74,8 +107,13 @@ public protocol MFARegistrationDescriptor {
         set
     }
     
-    /// The number of signatures available for enrollment.
-    var countOfAvailableEnrollments: Int {
+    /// Indicates if user presence signature is available for enrollment.
+    var canEnrollUserPresence: Bool {
+        get
+    }
+    
+    /// Indicates if biometric signature is available for enrollment.
+    var canEnrollBiometric: Bool {
         get
     }
     
@@ -84,78 +122,79 @@ public protocol MFARegistrationDescriptor {
     ///   - value: The JSON value typically obtained from a QR code.
     init(json value: String) throws
 
-    /// Gets the next available factor for enrollment.
+    /// Enrolls a signature‑based authentication method.
     ///
-    /// The function defined here returns ``EnrollableSignature`` which is used to create a public-key and sign the data. For example:
+    /// The function generates a new private/public key pair, stores the private key using the provided storage function, and then performs the enrollment using the resulting key name and public key.
+    ///
+    /// The caller supplies a `savePrivateKey` closure, which receives a `SecKeyAddType` describing the private key that should be persisted. In this enrollment flow, the closure will always be invoked with `SecKeyAddType.key`, containing:
+    ///  - the raw private key data (`Data`)
+    ///  - the key size in bits
+    ///  - the algorithm used to generate the key
+    ///
     /// ```swift
-    /// let controller = MFARegistrationController(json: qrScanResult)
+    /// import Core
     ///
-    /// // Initiate the registration provider.
-    /// let provider = try await controller.initiate(with: "John Doe", pushToken: "abc123")
+    /// try await enrollUserPresence(
+    ///     savePrivateKey: { key in
+    ///         // We know only `.key` will be passed
+    ///         guard case let .key(value, size, algorithm) = key else {
+    ///             throw MFARegistrationError.invalidRegistrationData(reason: "Expected SecKeyAddType.key but received a different case.")
+    ///         }
     ///
-    /// // Get the next enrollable signature.
-    /// guard let factor = await provider.nextEnrollment() else {
-    ///    return
-    /// }
+    ///         // Generate a unique label for the key
+    ///         let keyLabel = "\(UUID().uuidString).userPresence"
     ///
-    /// // Create the key-pair using default SHA512 hash.
-    /// let key = RSA.Signing.PrivateKey()
-    /// let publicKey = key.publicKey
-    ///
-    /// // Sign the data with the private key.
-    /// let value = factor.dataToSign.data(using: .utf8)!
-    /// let signature = try key.signature(for: value)
-    ///
-    /// // Add to the Keychain.
-    /// try KeychainService.default.addItem("biometric",
-    ///    value: key.derRepresentation,
-    ///    accessControl: factor.biometricAuthentication ? .biometryCurrentSet : nil)
-    ///
-    /// // Enroll the factor.
-    /// try await provider.enroll(with: "biometric",
-    ///    publicKey: key.publicKey.x509Representation
-    ///    signedData: String(decoding: signature.rawRepresentable, as: UTF8.self)
+    ///         try KeychainService.default.addItem(keyLabel, value: .key(value: value, size: size, algorithm: algorithm))
+    ///         return keyLabel
+    ///     }
+    /// )
     /// ```
     ///
-    ///  - Returns:An ``EnrollableSignature`` that is used to create the key pair.
-    @discardableResult
-    func nextEnrollment() async -> EnrollableSignature?
-    
-    /// Performs the enrollment of the factor.
+    /// When storing the key, use `SecAccessControlCreateFlags.userPresence` in your `SecAccessControl` configuration. This ensures the key is protected by biometrics with automatic fallback to the device passcode, providing a smooth and secure user experience across Face ID, Touch ID, and PIN‑based verification.  See [SecAccessControlCreateFlags](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags).
     ///
-    /// This method will generate a private/public key pair.  The private key is automatically saved to the Keychain.
-    ///
-    /// You can access the private key by name using the `authenticator.id` concatenated with the enrolled factor type.  For example:
-    /// ```swift
-    /// let controller = MFARegistrationController(json: qrScanResult)
-    ///
-    /// // Initiate the registration provider.
-    /// let provider = try await controller.initiate(with: "John Doe", pushToken: "abc123")
-    ///
-    /// // Get the next enrollable signature.
-    /// guard let factor = await provider.nextEnrollment() else {
-    ///    return
-    /// }
-    ///
-    /// // Enroll the factor.
-    /// try await provider.enroll()
-    ///
-    /// // Finalize the enrollment operations and generate the authenticator.
-    /// let authenticator = try await provider.finalize()
-    ///
-    /// // Get the enrolled face factor and retrieve the name in the Keychain to obtain the private key.
-    /// if let enrolledFactor = authenticator.allowedFactors.first(where: { $0.valueType is FaceFactorInfo }), let face = enrolledFactor.valueType as? FaceFactorInfo  {
-    ///    print(face[keyPath: \.name])  // prints "<authenicator.id>.face"
-    /// }
-    /// ```
-    func enroll() async throws
-    
-    /// Performs the enrollment of the factor.
     /// - Parameters:
-    ///   - name: The name to identify the Keychain item associated with the factor.
-    ///   - publicKey: An RSA public key used to verify cryptographic signatures.
-    ///   - signedData: The signed data of `EnrollableSignature.dataToSign` using the generated private key.
-    func enroll(with name: String, publicKey: String, signedData: String) async throws
+    ///   - savePrivateKey: A closure that receives the generated private key wrapped in a `SecKeyAddType` and returns the label under which the key was stored. The closure may throw if storage fails.
+    /// - Throws: Errors related to biometric evaluation, key generation, or enrollment.
+    func enrollUserPresence(savePrivateKey: (SecKeyAddType) throws -> String) async throws
+    
+    /// Enrolls a signature‑based authentication method requiring biometric verification.
+    ///
+    /// The function generates a new private/public key pair, stores the private key using the provided storage function, and then performs the enrollment using the resulting key name and public key.
+    ///
+    /// The caller supplies a `savePrivateKey` closure, which receives a `SecKeyAddType` describing the private key that should be persisted. In this enrollment flow, the closure will always be invoked with `SecKeyAddType.key`, containing:
+    ///  - the raw private key data (`Data`)
+    ///  - the key size in bits
+    ///  - the algorithm used to generate the key
+    ///
+    /// ```swift
+    /// import Core
+    ///
+    /// try await enrollBiometric(
+    ///     savePrivateKey: { key in
+    ///         // We know only `.key` will be passed
+    ///         guard case let .key(value, size, algorithm) = key else {
+    ///             throw MFARegistrationError.invalidRegistrationData(reason: "Expected SecKeyAddType.key but received a different case.")
+    ///         }
+    ///
+    ///         // Generate a unique label for the key
+    ///         let keyLabel = "\(UUID().uuidString).biometric"
+    ///
+    ///         try KeychainService.default.addItem(keyLabel, value: .key(value: value, size: size, algorithm: algorithm))
+    ///         return keyLabel
+    ///     },
+    ///     context: nil,
+    ///     reason: "Verify with device authentication"
+    /// )
+    /// ```
+    ///
+    /// When storing the key, use `SecAccessControlCreateFlags.userPresence` in your `SecAccessControl` configuration. This ensures the key is protected by biometrics with automatic fallback to the device passcode, providing a smooth and secure user experience across Face ID, Touch ID, and PIN‑based verification.  See [SecAccessControlCreateFlags](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags).
+    ///
+    /// - Parameters:
+    ///   - savePrivateKey: A closure that receives the generated private key wrapped in a `SecKeyAddType` and returns the label under which the key was stored. The closure may throw if storage fails.
+    ///   - context: An optional `LAContext`. If `nil`, a new `LAContext()` is created.
+    ///   - reason: A localized explanation shown in the biometric prompt.
+    /// - Throws: Errors related to biometric evaluation, key generation, or enrollment.
+    func enrollBiometric(savePrivateKey: (SecKeyAddType) throws -> String, context: LAContext?, reason: String?) async throws
     
     /// Completes the enrollment operations.
     ///
@@ -164,8 +203,54 @@ public protocol MFARegistrationDescriptor {
     func finalize() async throws -> Authenticator
 }
 
-/// An instance you use to instaniate an ``MFARegistrationDescriptor`` to perform enrollment operations.
+extension MFARegistrationDescriptor {
+    /// Enrolls a specific signature-based authentication method.
+    ///
+    /// This method can either generate a new key pair and sign the data itself, or use a pre-existing key pair and signature provided by the caller.
+    ///
+    /// - Throws: `CloudRegistrationError` or `OnPremisesRegistrationError` for various validation and network failures.
+    public func enrollUserPresence() async throws {
+        try await enrollUserPresence(
+            savePrivateKey: { key in
+                // Generate a unique label for the key
+                let keyLabel = "\(UUID().uuidString).userPresence"
+                
+                // Save to Keychain.
+                try KeychainService.default.addItem(keyLabel, value: key)
+                    
+                return keyLabel
+            }
+        )
+    }
+    
+    /// Enrolls a specific signature-based authentication method requiring biometric verification.
+    ///
+    /// This method first performs a biometric challenge and then uses the shared enrollment logic to register a signature key that is protected by biometry.
+    ///
+    /// - Throws: `CloudRegistrationError` or `OnPremisesRegistrationError` for various validation and network failures.
+    public func enrollBiometric() async throws {
+        try await enrollBiometric(
+            savePrivateKey: { key in
+                // Generate a unique label for the key
+                let keyLabel = "\(UUID().uuidString).biometrics"
+                
+                // Save to Keychain.
+                try KeychainService.default.addItem(keyLabel, value: key, accessControl: .userPresence)
+                
+                return keyLabel
+            },
+            context: nil,
+            reason: "Verify with device authentication"
+        )
+    }
+}
+
+/// A controller that manages the overall multi-factor registration process.
+///
+/// This class safely parses the QR code data and orchestrates the initiation of either a cloud or on-premise registration provider.
 public class MFARegistrationController {
+    // MARK: - Properties
+    
     /// The JSON string that initiates the a multi-factor registration.
     private let json: String
     
@@ -174,9 +259,11 @@ public class MFARegistrationController {
     
     /// A Boolean value that indicates whether the authenticator will ignore secure sockets layer certificate challenages.
     ///
-    ///  Before invoking `initiate(with:pushToken:additionalData:)` this value can be used to alert the user that the certificate connecting the service is self-signed.
+    ///  Before invoking ``initiate(with:pushToken:additionalData:)`` this value can be used to alert the user that the certificate connecting the service is self-signed.
     /// - Remark: When `true` the service is using a self-signed certificate.
     public let ignoreSSLCertificate: Bool
+    
+    // MARK: - Initialization
     
     // Creates the instance with JSON value.
     /// - Parameters:
@@ -230,22 +317,21 @@ public class MFARegistrationController {
     /// Initiates the registration of a multi-factor authenticator.
     /// - Parameters:
     ///   - accountName: The account name associated with the service.
-    ///   - skipTotpEnrollment: A Boolean value that when set to `true` the TOTP authentication method enrollment attempt will be skipped.
     ///   - pushToken: A token that identifies the device to Apple Push Notification Service (APNS).
     ///   - additionalData: (Optional) A dictionary of additional attributes assigned to an on-premise registration.
     ///
     ///Communicate with Apple Push Notification service (APNs) and receive a unique device token that identifies your app.  Refer to [Registering Your App with APNs](https://developer.apple.com/documentation/usernotifications/registering_your_app_with_apns).
-    public func initiate(with accountName: String, skipTotpEnrollment: Bool = true, pushToken: String? = "", additionalData: [String: Any]? = nil) async throws -> any MFARegistrationDescriptor {
+    public func initiate(with accountName: String, pushToken: String? = "", additionalData: [String: Any]? = nil) async throws -> any MFARegistrationDescriptor {
         if let provider = try? CloudRegistrationProvider(json: self.json) {
-            try await provider.initiate(with: accountName, skipTotpEnrollment: skipTotpEnrollment, pushToken: pushToken)
+            try await provider.initiate(with: accountName, pushToken: pushToken)
             return provider
         }
-        
-        if let provider = try? OnPremiseRegistrationProvider(json: self.json) {
-            try await provider.initiate(with: accountName, skipTotpEnrollment: skipTotpEnrollment, pushToken: pushToken, additionalData: additionalData)
+        else if let provider = try? OnPremiseRegistrationProvider(json: self.json) {
+            try await provider.initiate(with: accountName, pushToken: pushToken, additionalData: additionalData)
             return provider
         }
-        
-        throw MFARegistrationError.invalidFormat
+        else {
+            throw MFARegistrationError.invalidRegistrationData(reason: String(localized: "The provided registration data is not valid for either Cloud or On-Premise registration.", bundle: .module))
+        }
     }
 }

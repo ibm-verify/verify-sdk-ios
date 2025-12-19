@@ -14,7 +14,7 @@ public protocol OTPDescriptor {
     var digits: Int { get }
     
     /// The algorithm used to calculate the one-time passcode.  The default is `sha1`.
-    var algorithm: HashAlgorithmType { get }
+    var algorithm: SigningAlgorithm { get }
     
     /// Generates a one-time passcode for the authenticator instance.
     /// - Parameters:

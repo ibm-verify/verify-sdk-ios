@@ -35,13 +35,20 @@ public protocol MFAServiceDescriptor: Actor {
     
     /// Retrieve the next transaction that is associated with an authenticator registration.
     ///
-    /// When a `transactionID` is supplied, information relating to that transaction identifier is returned while in a PENDING state.  Otherwise the next transaction is returned.
+    /// When a `transactionId` is supplied, information relating to that transaction identifier is returned while in a PENDING state.  Otherwise the next transaction is returned.
     /// - Parameters:
-    ///   - transactionID: The transaction verification identifier.
+    ///   - transactionId: The transaction verification identifier.
     /// - Returns: The ``NextTransactionInfo`` representing the transaction and the number of pending transactions associated with the authenticator.
-    func nextTransaction(with transactionID: String?) async throws -> NextTransactionInfo
+    func nextTransaction(with transactionId: String?) async throws -> NextTransactionInfo
     
-    /// Complete a second factor authentication challenge associated with a registered authenticator.
+    /// Complete a second factor authentication challenge associated with a registered authenticator for a `PendingTransactionInfo`.
+    /// - Parameters:
+    ///   - pendingTransaction: The pending transaction to complete.
+    ///   - userAction: The enumerated type of user actions that can be performed to complete a transaction.
+    ///   - signedData: The base64 encoded value using the private key associated with the factor enrollment.
+    func completeTransaction(transaction pendingTransaction: PendingTransactionInfo, action userAction: UserAction, signedData: String) async throws
+    
+    /// Complete a second factor authentication challenge associated with a registered authenticator for the current `PendingTransactionInfo`.
     /// - Parameters:
     ///   - userAction: The enumerated type of user actions that can be performed to complete a transaction.
     ///   - signedData: The base64 encoded value using the private key associated with the factor enrollment.
@@ -54,9 +61,9 @@ extension MFAServiceDescriptor {
     ///   - loginUri: The endpoint that performs the passwordless login.  The URL is provided as `qrlogin_endpoint` in the response data returned from a QR scan.
     ///   - code: The authorization code provided in the QR scan.
     public func login(using loginUri: URL, code: String) async throws {
-        let body = """
-        {"lsi":"\(code)"}
-        """.data(using: .utf8)!
+        // Safely construct the JSON body
+        let payload: [String: String] = ["lsi": code]
+        let body = try JSONSerialization.data(withJSONObject: payload, options: [])
         
         // Create the request headers.
         let headers = ["Authorization": "Bearer \(self.accessToken)"]
@@ -78,7 +85,7 @@ extension MFAServiceDescriptor {
     ///
     /// // Get the transaction information and the enrolled factor type to use for signing.
     /// do {
-    ///   if let transaction = nextTranaction.current, let factorType = authenticator.allowedFactors.first(where: { $0.id == transaction.factorID }) {
+    ///   if let transaction = nextTranaction.current, let factorType = authenticator.enrolledFactors.first(where: { $0.name == transaction.keyName }) {
     ///     try await service.completeTransaction(action .verify, factor: factorType)
     ///   }
     /// }
@@ -91,18 +98,47 @@ extension MFAServiceDescriptor {
             throw MFAServiceError.invalidPendingTransaction
         }
         
-        guard let value = factorNameAndAlgorithm(for: factor) else {
-            throw MFAServiceError.general(message: "Invalid factor to perform signing.")
+        try await completeTransaction(transaction: pendingTransaction, action: userAction, factor: factor)
+    }
+    
+    /// Complete a second factor authentication challenge associated with a registered authenticator for a `PendingTransactionInfo`.
+    /// - Parameters:
+    ///   - transaction: The pending transaction to complete.
+    ///   - userAction: The enumerated type of user actions that can be performed to complete a transaction.
+    ///   - signedData: The base64 encoded value using the private key associated with the factor enrollment.
+    ///
+    /// ```swift
+    /// let controller = MFAServiceController(using: authenticator)
+    /// let service =  controller.initiate()
+    /// let nextTranaction = try await service.nextTranaction()
+    ///
+    /// // Get the transaction information and the enrolled factor type to use for signing.
+    /// do {
+    ///   if let transaction = nextTranaction.current, let factorType = authenticator.enrolledFactors.first(where: { $0.name == transaction.keyName }) {
+    ///     try await service.completeTransaction(nextTransaction, action .verify, factor: factorType)
+    ///   }
+    /// }
+    /// catch let error {
+    ///   print(error)
+    /// }
+    /// ```
+    public func completeTransaction(transaction pendingTransaction: PendingTransactionInfo, action userAction: UserAction, factor: FactorType) async throws {
+        guard let value = factor.nameAndAlgorithm else {
+            throw MFAServiceError.invalidFactor
         }
         
         var signedData = ""
         
         if userAction == .verify {
-            // Get the private from the Keychain for the factor.
-            signedData = try sign(name: value.name, algorithm: value.algorithm.rawValue, dataToSign: pendingTransaction.dataToSign)
+            // 1. Get the private from the Keychain for the factor.
+            let privateKey = try retrievePrivateKey(name: value.name)
+            
+            // 2. Pass the unwrapped `pendingTransaction.dataToSign` directly to the `sign` function.
+            signedData = try sign(pendingTransaction.dataToSign, with: privateKey, signingAlgorithm: value.algorithm)
         }
-        
-        try await completeTransaction(action: userAction, signedData: signedData)
+         
+        // 3. Complete the transaction with the signed data.
+        try await completeTransaction(transaction: pendingTransaction, action: userAction, signedData: signedData)
     }
 }
 
@@ -128,29 +164,56 @@ public enum UserAction: String {
     case failedBiometry = "BIOMETRY_FAILED"
 }
 
-public enum MFAServiceError: Error, LocalizedError, Equatable {
-    /// The signing hash algorithm was invalid.
-    case invalidSigningHash
+/// A comprehensive enum representing all possible errors that can occur within the Multi-Factor Authentication (MFA) service.
+///
+/// This custom error type provides specific cases for different failure scenarios, enabling more precise error handling and better debuggability compared to a generic `Error` type.
+public enum MFAServiceError: Error, LocalizedError {
+    /// An error that occurs when a JSON value fails to decode into the expected type.
+    case dataDecodingFailed(reason: String)
+    
+    /// The factor provided is invalid for signing.
+    case invalidFactor
+    
+    /// Authentication token is missing.
+    case tokenNotFound
+    
+    /// The private key required for a cryptographic operation was not found in the Keychain.
+    ///
+    /// This is a critical error, as it indicates a failure to retrieve the necessary key for signing data.
+    case keyNotFound
     
     /// No pending transaction was available to complete.
+    ///
+    /// This is a state-related error, indicating that the service was expecting to find an in-progress transaction but could not.
     case invalidPendingTransaction
     
-    /// Serialization conversion failed.
-    case serializationFailed
-    
-    /// The response data was invalid.
-    case invalidDataResponse
-    
-    /// The JSON decoding operation failed.
-    case decodingFailed
-    
-    /// Unable to create the pending transaction.
+    /// The service was unable to create a new pending transaction to begin a new MFA flow.
+    ///
+    /// This is an initial state error, typically indicating a problem with the service's readiness.
     case unableToCreateTransaction
     
-    /// General error with custom message.
-    case general(message: String)
+    /// A general error that occurred perform a MFA operation. The associated value provides the underlying error.
+    case underlyingError(error: Error)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .dataDecodingFailed(let reason):
+            return String(localized: "The received data could not be parsed. \(reason)", bundle: .module)
+        case .invalidFactor:
+            return String(localized: "Invalid factor to perform signing.", bundle: .module)
+        case .tokenNotFound:
+            return String(localized: "The access or refresh token is missing.", bundle: .module)
+        case .keyNotFound:
+            return String(localized: "The private key used for signing was not found.", bundle: .module)
+        case .invalidPendingTransaction:
+            return String(localized: "No pending transaction was available to complete.", bundle: .module)
+        case .unableToCreateTransaction:
+            return String(localized: "Unable to create the transaction for identifier.", bundle: .module)
+        case .underlyingError(let error):
+            return String(localized: "An error occured. \(error.localizedDescription)", bundle: .module)
+        }
+    }
 }
-
 
 /// An instance you use to instaniate an ``MFAServiceDescriptor`` to perform transaction, login and token refresh operations.
 public class MFAServiceController {
@@ -185,13 +248,33 @@ public class MFAServiceController {
                                                  transactionUri: self.authenticator.transactionUri,
                                                  clientId: authenticator.clientId,
                                                  authenticatorId: self.authenticator.id,
-                                                 certificateTrust: certificateTrust)
+                                                 certificateTrust: certificateTrust
+            )
         }
         
         return CloudAuthenticatorService(with: self.authenticator.token.accessToken,
                                          refreshUri: self.authenticator.refreshUri,
                                          transactionUri: self.authenticator.transactionUri,
                                          authenticatorId: self.authenticator.id,
-                                         certificateTrust: certificateTrust)
+                                         certificateTrust: certificateTrust
+        )
+    }
+    
+    /// Returns the authentication factor associated with the given transaction.
+    ///
+    /// Each pending transaction references a specific factor by its `keyName`.  This method resolves that identifier by comparing it against the authenticator’s enrolled factors (such as biometric or user‑presence) and returns the matching `FactorType` if one exists.
+    ///
+    /// This lookup allows the caller to determine which factor must be used to approve or deny the transaction, without needing to manually inspect each factor type. If no matching factor is found, the method returns `nil`.
+    ///
+    /// ```swift
+    /// if let factor = transactionFactor(for: transaction) {
+    ///    // Present UI or perform verification for the matched factor.
+    /// }
+    /// ```
+    ///
+    /// - Parameter transaction: The transaction whose associated factor should be resolved.
+    /// - Returns: The matching `FactorType` if the authenticator supports it, or `nil` if the transaction references an unknown or unavailable factor.
+    public func transactionFactor(for transaction: PendingTransactionInfo) -> FactorType? {
+        authenticator.enrolledFactors.first { $0.name == transaction.keyName }
     }
 }

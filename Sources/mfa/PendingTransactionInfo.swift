@@ -62,8 +62,11 @@ public struct PendingTransactionInfo {
     /// The location of the endpoint to complete the transaction operation.
     public let postbackUri: URL
 
-    /// An identifier generated during enrollment to uniquely identify a specific authentication factor.
-    public let factorID: UUID
+    /// The name of the identifier to retrive the private key stored during factor enrollment.
+    public let keyName: String
+    
+    /// A value that identifies the specific authentication factor or factor policy.
+    public let factorId: String
     
     /// The name indicating the type of authentication factor.
     public let factorType: String

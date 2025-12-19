@@ -48,7 +48,7 @@ public class OAuthProvider {
     private let logger: Logger
     private let serviceName = Bundle.main.bundleIdentifier!
     
-    /// The client identifier issued to the client during the registration process.
+    /// The client identifier issued by the client during the registration process.
     let clientId: String
     
     /// The client secret.
@@ -76,7 +76,7 @@ public class OAuthProvider {
     ///   - clientId: The client identifier issued to the client during the registration process.
     ///   - clientSecret: The client secret.
     ///   - timeoutInterval: The request’s timeout interval, in seconds.  Default is 30 seconds.
-    ///   - additionalParameters: The client's additional authorization parameters.
+    ///   - additonalParameters: The client's additional authorization parameters.
     ///   - certificateTrust: A delegate to handle session-level certificate pinning.
     public init(clientId: String, clientSecret: String? = nil, timeoutInterval: TimeInterval = 30, additionalParameters: [String: Any] = [:], certificateTrust: URLSessionDelegate? = nil) {
         logger = Logger(subsystem: serviceName, category: "oauth")
@@ -100,7 +100,9 @@ public class OAuthProvider {
     /// Discover the authorization service configuration from a compliant OpenID Connect endpoint.
     /// - Parameters:
     ///   - url: The `URL` for the OpenID Connect service provider issuer.
-    public static func discover(issuer url: URL) async throws -> OIDCMetadataInfo {
+    ///   - certificateTrust: A delegate to handle session-level certificate pinning.
+    /// - Returns: A new `OIDCMetadataInfo`.
+    public static func discover(issuer url: URL, certificateTrust: URLSessionDelegate? = nil) async throws -> OIDCMetadataInfo {
         // Check for the .well-known/openid-configuration
         if !url.path.hasSuffix(".well-known/openid-configuration") {
             throw URLError(.badURL, userInfo: ["reason": "The URL does not end with the .well-known/openid-configuration path component."])
@@ -110,8 +112,17 @@ public class OAuthProvider {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         
         let resource = HTTPResource<OIDCMetadataInfo>(json: .get, url: url, decoder: decoder)
+        let urlSession: URLSession
         
-        return try await URLSession.shared.dataTask(for: resource)
+        if let certificateTrust = certificateTrust {
+            // Set the URLSession for certificate pinning.
+            urlSession = URLSession(configuration: .default, delegate: certificateTrust, delegateQueue: nil)
+        }
+        else {
+            urlSession = URLSession.shared
+        }
+        
+        return try await urlSession.dataTask(for: resource)
     }
     
     // MARK: - Pre-authorization
@@ -207,6 +218,7 @@ public class OAuthProvider {
     ///   - authorizationCode: The authorization code received from the authorization server.
     ///   - codeVerifier: The PKCE code verifier used to redeem the authorization code.
     ///   - scope: The scope of the access request.
+    /// - Returns: A new `TokenInfo`.
     public func authorize(issuer url: URL, redirectUrl: URL? = nil, authorizationCode: String, codeVerifier: String? = nil, scope: [String]? = nil) async throws -> TokenInfo {
         // Create the parameters to encode into the body.
         var parameters: [String: Any] = ["grant_type": "authorization_code",
@@ -250,9 +262,10 @@ public class OAuthProvider {
     /// The resource owner password credentials (i.e., username and password) can be used directly as an authorization grant to obtain an access token.
     /// - Parameters:
     ///   - url: The `URL` for the OpenID Connect service provider issuer.
-    ///   - username: The resource owner username.
+    ///   - userName: The resource owner username.
     ///   - password: The resource owner password.
     ///   - scope: The scope of the access request.
+    /// - Returns: A new `TokenInfo`.
     public func authorize(issuer url: URL, username: String, password: String, scope: [String]? = nil) async throws -> TokenInfo {
         // Create the parameters to encode into the body.
             var parameters: [String: Any] = ["grant_type": "password",
@@ -292,9 +305,10 @@ public class OAuthProvider {
     ///
     /// - Parameters:
     ///   - url: The `URL` for the OpenID Connect service provider issuer.
-    ///   - refreshToken: The refresh token to acquire a new access token.
+    ///   - clientId: The client identifier issued to the client during the registration process.
+    ///   - clientSecret: The client secret.
     ///   - scope: The scope of the access request.  The requested scope must not include any scope not originally granted by the resource owner, and if omitted is treated as equal to the scope originally granted by the resource owner.
-    ///
+    /// - Returns: A new `TokenInfo`.
     public func refresh(issuer url: URL, refreshToken: String, scope: [String]? = nil) async throws -> TokenInfo {
         // Create the parameters to encode into the body.
             var parameters: [String: Any] = ["grant_type": "refresh_token",

@@ -14,14 +14,14 @@ An [example](../../Examples/mfa) application is available for the MFA SDK
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-mobile-ios.git", from: "3.0.11")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.0.12")
 ]
 ```
 
 then in the `targets` section of the application/library, add one or more components to your `dependencies`, for example:
 
 ```swift
-// Target for Swift 5.7
+// Target for Swift 6.0
 .target(name: "MyExampleApp", dependencies: [
     .product(name: "MFA", package: "IBM Verify")
 ],
@@ -32,7 +32,7 @@ Alternatively, you can add the package manually.
 2. Select your application project under the **PROJECT** heading
 3. Select the **Swift Packages** tab.
 4. Click on the `+` button.
-5. Enter `https://github.com/ibm-verify/verify-mobile-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
+5. Enter `https://github.com/ibm-verify/verify-sdk-ios.git` as the respository URL and follow the remaining steps selecting the components to add to your project.
 
 ### API documentation
 The MFA SDK API can be reviewed [here](https://ibm-verify.github.io/ios/documentation/mfa/).
@@ -57,27 +57,33 @@ let controller = MFARegistrationController(json: qrScanResult)
 // Initiate the registration provider.
 let provider = try await controller.initiate(with: "John Doe", pushToken: "abc123")
 
-// Get the next enrollable signature.
-guard let factor = await provider.nextEnrollment() else {
-   return
+// Enroll user presence if available, auto-generate keypairs.
+if provider.canEnrollUserPresence {
+   try await provider.enrollUserPresence()
 }
 
-// Create the key-pair using default SHA512 hash.
-let key = RSA.Signing.PrivateKey()
-let publicKey = key.publicKey
+if provider.canEnrollBiometric {
+   // Enroll the factor. Handle the persistance of the private key using a closure.
+   try await provider.enrollBiometric(
+      savePrivateKey: { key in
+         // Generate a unique label for the key
+         let keyLabel = "private_key_for_biometric"
 
-// Sign the data with the private key.
-let value = factor.dataToSign.data(using: .utf8)!
-let signature = try key.signature(for: value)
+         // Store the key in the Keychain
+         try KeychainService.shared.addItem(
+            keyLabel,
+            value: key,
+            allowSync: false,
+            accessControl: .userPresence,      // Allow device PIN fallback.
+            accessibility: .afterFirstUnlock
+         )
 
-// Add to the Keychain.
-try KeychainService.default.addItem("biometric", value: key.derRepresentation, accessControl: factor.biometricAuthentication ? .biometryCurrentSet : nil)
-    
-// Enroll the factor.
-try await provider.enroll(with: "biometric", publicKey: key.publicKey.x509Representation signedData: String(decoding: signature.rawRepresentable, as: UTF8.self)
-
-// NOTE: Alternatively instead of creating the keys and saving to the Keychain, you could simply call:
-try await provider.enroll()
+         return keyLabel
+      },
+      context: LAContext(),
+      reason: "Verify with biometrics"
+   )
+}
 
 // Complete the registration and save authenticator.
 let authenticator = try await provider.finalize()
@@ -85,9 +91,9 @@ let data = try JSONEncoder().encode(authenticator)
 try data.write(to: "fileLocation")
 ```
 
-The private key saved to the Keychain can be accessed using `authenticator.id.<type>` where the type is either `userPresence` or `fingerprint`.  For example:
+The private key saved to the Keychain can be accessed using the keyName provided during the enrollment.  For example:
 ```
-guard let privateKeyData = try? KeychainService.default.readItem("\(authenticator.id).userPresence"),
+guard let privateKeyData = try? KeychainService.default.readItem("private_key_for_biometric", searchType: .key),
     let privateKey = try RSA.Signing.PrivateKey(derRepresentation: privateKeyData) else {
     // No item found
     return
@@ -115,7 +121,7 @@ Continuing the previous code snippet, the following example demonstrates how to 
 
 ```swift
 // Deny
-if let factorType = authenticator.allowedFactors.first(where: {$0.id == transaction.factorID } {
+if let factorType = authenticator.enrolledFactors.first(where: {$0.id == transaction.factorId } {
    do {
       try await self.service.completeTransaction(action: .deny, factor: factorType)
    }
@@ -125,7 +131,7 @@ if let factorType = authenticator.allowedFactors.first(where: {$0.id == transact
 }
 
 // Approve
-if let factorType = authenticator.allowedFactors.first(where: {$0.id == transaction.factorID } {
+if let factorType = authenticator.enrolledFactors.first(where: {$0.name == transaction.keyName } {
    do {
       try await self.service.completeTransaction(factor: factorType)
    }

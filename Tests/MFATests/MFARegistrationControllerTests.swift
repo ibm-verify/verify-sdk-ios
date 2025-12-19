@@ -3,6 +3,7 @@
 //
 
 import XCTest
+import Core
 @testable import MFA
 
 class MFARegistrationControllerTests: XCTestCase {
@@ -43,7 +44,7 @@ class MFARegistrationControllerTests: XCTestCase {
     /// Test the scan and create an instance of the cloud registration provider.
     func testInitiateCloudRegistration() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBaseCloud)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBaseCloud)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiate")
         
         // Where
@@ -53,7 +54,7 @@ class MFARegistrationControllerTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try await controller.initiate(with: "John Doe", skipTotpEnrollment: false, pushToken: "abc123")
+        let provider = try await controller.initiate(with: "John Doe", pushToken: "abc123")
         XCTAssertNotNil(provider)
         XCTAssertTrue(provider is CloudRegistrationProvider)
     }
@@ -110,7 +111,7 @@ class MFARegistrationControllerTests: XCTestCase {
     /// Test the scan and create an instance registration controller and test the domain.
     func testInitiateCloudRegistrationDomain() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBaseCloud)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
+        let registrationUrl = URL(string: "\(urlBaseCloud)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiate")
         
         // Where
@@ -187,20 +188,16 @@ class MFARegistrationControllerTests: XCTestCase {
         var factorType: [MFA.FactorType] = [MFA.FactorType]()
         
         // Where
-        factorType.append(FactorType.face(FaceFactorInfo(id: UUID(), name: "Face", algorithm: .sha512)))
-        factorType.append(FactorType.fingerprint(FingerprintFactorInfo(id: UUID(), name: "Fingerprint", algorithm: .sha512)))
-        factorType.append(FactorType.userPresence(UserPresenceFactorInfo(id: UUID(), name: "User presence", algorithm: .sha512)))
-        factorType.append(FactorType.totp(TOTPFactorInfo(with: "TOTP", digits: 8, algorithm: .sha1, period: 6)))
-        factorType.append(FactorType.hotp(HOTPFactorInfo(with: "HOTP", digits: 6, algorithm: .sha1, counter: 0)))
+        factorType.append(.biometric(BiometricFactorInfo(id: UUID().uuidString, name: "Face", algorithm: .sha512)))
+        factorType.append(.userPresence(UserPresenceFactorInfo(id: UUID().uuidString, name: "User presence", algorithm: .sha512)))
+        factorType.append(.totp(TOTPFactorInfo(with: "TOTP", digits: 8, algorithm: .sha1, period: 6)))
+        factorType.append(.hotp(HOTPFactorInfo(with: "HOTP", digits: 6, algorithm: .sha1, counter: 0)))
         
         
         // Then
         factorType.forEach { factor in
-            if let info = factor.valueType as? FaceFactorInfo {
+            if let info = factor.valueType as? BiometricFactorInfo {
                 XCTAssertTrue(info.displayName == "Face ID")
-            }
-            if let info = factor.valueType as? FingerprintFactorInfo {
-                XCTAssertTrue(info.displayName == "Touch ID")
             }
             if let info = factor.valueType as? UserPresenceFactorInfo {
                 XCTAssertTrue(info.displayName == "User presence")
@@ -217,15 +214,13 @@ class MFARegistrationControllerTests: XCTestCase {
     /// This test ensures the static display name is returned for each factor.
     func testFactorTypeDisplayName() throws {
         // Given, Where
-        let face = FactorType.face(FaceFactorInfo(id: UUID(), name: "Face", algorithm: .sha512))
-        let fingerprint = FactorType.fingerprint(FingerprintFactorInfo(id: UUID(), name: "Fingerprint", algorithm: .sha512))
-        let userPresence = FactorType.userPresence(UserPresenceFactorInfo(id: UUID(), name: "User presence", algorithm: .sha512))
+        let biometric = FactorType.biometric(BiometricFactorInfo(id: UUID().uuidString, name: "Fingerprint", algorithm: .sha512))
+        let userPresence = FactorType.userPresence(UserPresenceFactorInfo(id: UUID().uuidString, name: "User presence", algorithm: .sha512))
         let totp = FactorType.totp(TOTPFactorInfo(with: "TOTP", digits: 8, algorithm: .sha1, period: 6))
         let hotp = FactorType.hotp(HOTPFactorInfo(with: "HOTP", digits: 6, algorithm: .sha1, counter: 0))
         
         // Then
-        XCTAssertTrue(face.displayName == "Face ID")
-        XCTAssertTrue(fingerprint.displayName == "Touch ID")
+        XCTAssertTrue(biometric.displayName == "Face ID")
         XCTAssertTrue(userPresence.displayName == "User presence")
         XCTAssertTrue(totp.displayName == "Time-based one-time password (TOTP)")
         XCTAssertTrue(hotp.displayName == "HMAC-based one-time password (HOTP)")
@@ -234,14 +229,49 @@ class MFARegistrationControllerTests: XCTestCase {
     /// This test ensures the static id is returned for each factor.
     func testFactorTypeId() throws {
         // Given, Where
-        let id = UUID()
-        let face = FactorType.face(FaceFactorInfo(id: id, name: "Face", algorithm: .sha512))
-        let fingerprint = FactorType.fingerprint(FingerprintFactorInfo(id: id, name: "Fingerprint", algorithm: .sha512))
+        let id = UUID().uuidString
+        let biometric = FactorType.biometric(BiometricFactorInfo(id: id, name: "Face", algorithm: .sha512))
         let userPresence = FactorType.userPresence(UserPresenceFactorInfo(id: id, name: "User presence", algorithm: .sha512))
         
         // Then
-        XCTAssertTrue(face.id == id)
-        XCTAssertTrue(fingerprint.id == id)
+        XCTAssertTrue(biometric.id == id)
         XCTAssertTrue(userPresence.id == id)
+    }
+    
+    // MARK: Helper Functions
+    static func saveBiometricPrivateKey(_ key: SecKeyAddType) throws -> String {
+        // We know only `.key` will be passed
+        guard case let .key(value, size, algorithm) = key else {
+            throw MFARegistrationError.invalidRegistrationData(reason: "Expected SecKeyAddType.key but received a different case.")
+        }
+    
+        // Generate a unique label for the key
+        let keyLabel = "\(UUID().uuidString).privateKey"
+    
+        #if targetEnvironment(simulator)
+        UserDefaults.standard.set(value, forKey: keyLabel)
+        #else
+        try KeychainService.default.addItem(keyLabel, value: .key(value: value, size: size, algorithm: algorithm), accessControl: .userPresence)
+        #endif
+    
+        return keyLabel
+    }
+    
+    static func saveUserPresencePrivateKey(_ key: SecKeyAddType) throws -> String {
+        // We know only `.key` will be passed
+        guard case let .key(value, size, algorithm) = key else {
+            throw MFARegistrationError.invalidRegistrationData(reason: "Expected SecKeyAddType.key but received a different case.")
+        }
+    
+        // Generate a unique label for the key
+        let keyLabel = "\(UUID().uuidString).privateKey"
+    
+        #if targetEnvironment(simulator)
+        UserDefaults.standard.set(value, forKey: keyLabel)
+        #else
+        try KeychainService.default.addItem(keyLabel, value: .key(value: value, size: size, algorithm: algorithm), accessControl: .userPresence)
+        #endif
+    
+        return keyLabel
     }
 }

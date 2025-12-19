@@ -36,7 +36,8 @@ class CloudAuthenticatorTests: XCTestCase {
         
         // Then
         guard let authenticator = authenticator as? CloudAuthenticator else {
-            throw CloudRegistrationError.failedToParse
+            XCTFail("Unable to create authenticator.")
+            return
         }
         
         // Then
@@ -51,11 +52,11 @@ class CloudAuthenticatorTests: XCTestCase {
     }
     
     /// This test decodes an authenticator and checks values are the same.
-    func testDecodingTest() async throws -> CloudAuthenticator {
+    func testDecodingTest(file name: String = "cloud.authenticator") async throws -> CloudAuthenticator {
         // Given, When
         var data: Data {
             get {
-                let url = Bundle.module.url(forResource: "cloud.authenticator", withExtension: "json", subdirectory: "Files")!
+                let url = Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Files")!
                 return try! Data(contentsOf: url)
             }
         }
@@ -88,7 +89,7 @@ class CloudAuthenticatorTests: XCTestCase {
         XCTAssertNotNil(data)
     }
     
-    /// This test gets the array of allowed factors.
+    /// This test gets the user presence factor..
     func testAuthenticatorFactorsTest() async throws {
         // Given, When
         let authenticator = try await testDecodingTest()
@@ -97,9 +98,6 @@ class CloudAuthenticatorTests: XCTestCase {
         XCTAssertNotNil(authenticator)
         
         // Then
-        authenticator.allowedFactors.forEach { print($0.valueType.id) }
-        
-        // Then
-        XCTAssertEqual(authenticator.allowedFactors.count, 1)
+        XCTAssertNotNil(authenticator.userPresence)
     }
 }

@@ -15,15 +15,13 @@
     "theme": {},
     "clientId": "AuthenticatorClient",
     "ignoreSSLCertificate": false,
-    "allowedFactors":[
-          {
-             "userPresence": {
-                "id": "7F81136C-DD93-4D96-BC6B-3F3A3DD4583E",
-                "name": "uuid32f7aa4f-6de3-4f6a-b242-a2d935144974.userPresence",
-                "algorithm": "sha512"
-             }
-          }
-       ],
+    "userPresence": {
+        "id": "7F81136C-DD93-4D96-BC6B-3F3A3DD4583E",
+        "name": "uuid32f7aa4f-6de3-4f6a-b242-a2d935144974.userPresence",
+        "algorithm": "sha512",
+        "imageName" : "hand.tap",
+        "displayName" : "User presence"
+    },
     "id": "uuid32f7aa4f-6de3-4f6a-b242-a2d935144974",
     "refreshUri": "https://mmfa.securitypoc.com/mga/sps/oauth/oauth20/token",
     "transactionUri": "https://mmfa.securitypoc.com/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending"

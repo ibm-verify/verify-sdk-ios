@@ -14,8 +14,9 @@ public struct OnPremiseAuthenticator: MFAAuthenticatorDescriptor {
     public let id: String
     public let serviceName: String
     public var accountName: String
-    public let allowedFactors: [FactorType]
     public var publicKeyCertificate: String?
+    public private(set) var userPresence: UserPresenceFactorInfo?
+    public private(set) var biometric: BiometricFactorInfo?
     
     /// The location of the endpoint to perform QR code based authentication.
     ///
