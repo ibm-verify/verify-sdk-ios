@@ -12,7 +12,7 @@ class OAuthProviderTest: XCTestCase {
     let clientId = "38cdeff8-9693-4f0b-99c9-563d5c20d6a7"
     let clientSecret = ""
     let username = "testuser"
-    let password = "Passw0rd"
+    let password = "!Passw0rd"
     let urlBase = "https://sdk.verify.ibm.com/v1.0/endpoint/default"
     
     override func setUpWithError() throws {
@@ -33,6 +33,23 @@ class OAuthProviderTest: XCTestCase {
         // Where, Then
         do {
             let result = try await OAuthProvider.discover(issuer: url)
+            XCTAssertNotNil(result)
+            XCTAssert(true)
+        }
+        catch let error {
+            print(error)
+            XCTFail(error.localizedDescription)
+        }
+    }
+    
+    /// Tests the disovery endpoint against a publically OAuth 2 endpoint with a self-signed certificate.
+    func testDiscoverWithSelfSignedCert() async throws {
+        // Given
+       let url = URL(string: "\(urlBase)/.well-known/openid-configuration")!
+        
+        // Where, Then
+        do {
+            let result = try await OAuthProvider.discover(issuer: url, certificateTrust: SelfSignedCertificateDelegate())
             XCTAssertNotNil(result)
             XCTAssert(true)
         }

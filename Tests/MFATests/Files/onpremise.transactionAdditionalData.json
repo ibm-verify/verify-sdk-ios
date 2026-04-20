@@ -111,7 +111,7 @@
         {
             "dataType":"String",
             "values":[
-                "{\"type\": \"transaction\",\"originIpAddress\": \"8.8.8.8\",\"originUserAgent\": \"Browser\",\"originLocation\": \"Gold Coast, Australia\",\"imageURL\": \"https://picsum.photos/200/300\", \"city\": \"Surfers Paradise\" }"
+                "{\"type\": \"transaction\",\"originIpAddress\": \"8.8.8.8\",\"originUserAgent\": \"Browser\",\"originLocation\": \"Gold Coast, Australia\",\"imageURL\": \"https://picsum.photos/200/300\", \"city\": \"Surfers Paradise\",\"correlationEnabled\":true }"
             ],
             "name":"mmfa.request.extras",
             "uri":"mmfa:request:extras",

@@ -7,13 +7,6 @@
     "token_type" : "Bearer",
     "expires_on" : 786427223.749377
   },
-  "userPresence" : {
-      "algorithm" : "sha256",
-      "id" : "F0CF603F-AE9B-49CE-AD07-70F5777377DB",
-      "name" : "b0bf603f-ae9b-49ce-ad07-70f5777377db.userPresence",
-      "imageName" : "hand.tap",
-      "displayName" : "User presence"
-  },
   "transactionUri" : "https:\/\/sdk.verify.ibm.com\/v1.0\/authenticators\/verifications",
   "customAttributes" : {
     "privacyUri" : "https:\/\/sdk.verify.ibm.com\/privacy.html"

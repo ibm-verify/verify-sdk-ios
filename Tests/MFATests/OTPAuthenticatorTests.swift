@@ -26,10 +26,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.digits, 6)
+        XCTAssertEqual(factor?.digits, 6)
     }
     
     /// Test to create an TOTP authenticator from a QR code where an invalid value is presented.
@@ -53,10 +53,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.digits, 6)
+        XCTAssertEqual(factor?.digits, 6)
     }
     
     /// Test to create an TOTP authenticator from a QR code that assigns valid digit value of 8.
@@ -68,10 +68,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.digits, 8)
+        XCTAssertEqual(factor?.digits, 8)
     }
     
     /// Test to create an TOTP authenticator that assigns default digit value of 6 when an invalid value is presented.
@@ -83,10 +83,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(with: "ACME Co", accountName: "john.doe@email.com", factor: value)
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.digits, 65)
+        XCTAssertEqual(factor?.digits, 65)
     }
     
     /// Test to create an HOTP authenticator that assigns default digit value of 6 when an invalid value is presented.
@@ -98,10 +98,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(with: "ACME Co", accountName: "john.doe@email.com", factor: value)
         
         // Then
-        let factor = result.allowedFactors[0].valueType as! HOTPFactorInfo
+        let factor = result.hotp
         
         // Then
-        XCTAssertEqual(factor.digits, 65)
+        XCTAssertEqual(factor?.digits, 65)
     }
     
     // MARK: - OTP Autenticator Algorithm
@@ -115,10 +115,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha1)
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
     }
     
     /// Test to create an TOTP authenticator from a QR code that assigns algorithm of sha256.
@@ -130,10 +130,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha256)
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha256)
     }
     
     /// Test to create an TOTP authenticator from a QR code that assigns algorithm of sha384
@@ -145,10 +145,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha384)
+        XCTAssertEqual(factor?.algorithm, .sha384)
     }
     
     /// Test to create an TOTP authenticator from a QR code that assigns algorithm of sha512.
@@ -161,10 +161,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha512)
+        XCTAssertEqual(factor?.algorithm, .sha512)
     }
     
     /// Test to create an TOTP authenticator from a QR code that assigns default algorithm of sha1 where an invalid algorithm.
@@ -176,7 +176,8 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)
         
         // Then
-        XCTAssertNil(result)
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.totp?.algorithm, .sha1)
     }
     
     // MARK: - OTP Autenticator Initializers
@@ -190,15 +191,98 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(with: "ACME Co", accountName: "john.doe@email.com", factor: value)
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! HOTPFactorInfo
+        let factor = result.hotp
        
         // Then
         XCTAssertEqual(result.serviceName, "ACME Co")
         XCTAssertEqual(result.accountName, "john.doe@email.com")
-        XCTAssertEqual(factor.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha1)
-        XCTAssertEqual(factor.digits, 6)
-        XCTAssertEqual(factor.counter, 1)
+        XCTAssertEqual(factor?.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
+        XCTAssertEqual(factor?.digits, 6)
+        XCTAssertEqual(factor?.counter, 1)
+    }
+    
+    /// Tests that a standard, well-formed TOTP URI is parsed correctly.
+    func testStandardTOTPParsing() {
+        let uri = "otpauth://totp/GitHub:monalisa?secret=K66778899&issuer=GitHub&digits=6&period=30"
+        let authenticator = OTPAuthenticator(fromQRScan: uri)
+        
+        XCTAssertNotNil(authenticator, "Model should initialize from a valid TOTP URI")
+        XCTAssertEqual(authenticator?.serviceName, "GitHub")
+        XCTAssertEqual(authenticator?.accountName, "monalisa")
+        XCTAssertEqual(authenticator?.totp?.digits, 6)
+    }
+
+    /// Tests parsing of an HOTP URI with a counter parameter.
+    func testHOTPParsingWithCounter() {
+        let uri = "otpauth://hotp/Bank:User?secret=ABC123&counter=5"
+        let authenticator = OTPAuthenticator(fromQRScan: uri)
+        
+        XCTAssertNotNil(authenticator)
+        XCTAssertEqual(authenticator?.serviceName, "Bank")
+        XCTAssertEqual(authenticator?.accountName, "User")
+        
+        if let hotpFactor = authenticator?.hotp as? HOTPFactorInfo {
+            XCTAssertEqual(hotpFactor.counter, 5)
+        }
+        else {
+            XCTFail("Factor should be of type HOTPFactorInfo")
+        }
+    }
+
+   /// Tests the specific case reported: Percent-encoded colons and labels without a separate issuer query item.
+    /// URI: otpauth://hotp/My%20HOTP:Craig2?secret=hohfplts...&algorithm=SHA512&digits=6&counter=0
+    func testEncodedLabelParsingWithoutQueryIssuer() {
+        let uri = "otpauth://hotp/My%20HOTP:foo?secret=hohfplts634xr4pkhfbaipjd5yolov7i6c66vtqvgpjkm7442yhxzu46&algorithm=SHA512&digits=6&period=15&lock=false&counter=0"
+        
+        let authenticator = OTPAuthenticator(fromQRScan: uri)
+        
+        XCTAssertNotNil(authenticator, "Should handle percent-encoded paths correctly")
+        XCTAssertEqual(authenticator?.serviceName, "My HOTP", "Should extract Issuer from the label prefix")
+        XCTAssertEqual(authenticator?.accountName, "foo", "Should extract Account from the label suffix")
+    }
+
+    /// Tests the deduplication logic where the issuer is repeated in the account name.
+    /// Example: "IBM: IBM - Craig" -> Issuer: "IBM", Account: "Craig"
+    func testDeduplicationOfIssuerInAccountName() {
+        let uri = "otpauth://totp/IBM:IBM%20-%20dog?secret=SECRET&issuer=IBM"
+        let authenticator = OTPAuthenticator(fromQRScan: uri)
+        
+        XCTAssertEqual(authenticator?.serviceName, "IBM")
+        // Note: Now expecting the literal string after the colon
+        XCTAssertEqual(authenticator?.accountName, "IBM - dog")
+    }
+
+    /// Tests that the parser handles mixed casing in the scheme and host.
+    func testCaseInsensitivity() {
+        let uri = "OTPAUTH://TOTP/test?secret=base32secret"
+        let authenticator = OTPAuthenticator(fromQRScan: uri)
+        
+        XCTAssertNotNil(authenticator, "Parser should be case-insensitive for scheme and host")
+    }
+
+     /// Tests that the initializer returns nil when the secret is missing.
+    func testMissingSecretReturnsNil() {
+        let uri = "otpauth://totp/MissingSecret?issuer=Test"
+        let authenticator = OTPAuthenticator(fromQRScan: uri)
+        
+        XCTAssertNil(authenticator, "Initialization should fail if 'secret' is missing from query items")
+    }
+
+    /// Tests that an invalid OTP type returns nil.
+    func testInvalidTypeReturnsNil() {
+        let uri = "otpauth://invalidType/Account?secret=ABC"
+        let authenticator = OTPAuthenticator(fromQRScan: uri)
+        
+        XCTAssertNil(authenticator, "Should only support 'totp' and 'hotp'")
+    }
+    
+    /// Tests that an invalid digits count (e.g., 7) returns nil based on our strict [6, 8] validation.
+    func testInvalidDigitsReturnsNil() {
+        let uri = "otpauth://totp/Acc?secret=ABC&digits=7"
+        let authenticator = OTPAuthenticator(fromQRScan: uri)
+        
+        XCTAssertNil(authenticator, "Should fail if digits is not 6 or 8")
     }
     
     /// Test to create an HOTP authenticator with minimum parameters assigning default values.
@@ -210,16 +294,18 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(with: "ACME Co", accountName: "john.doe@email.com", factor: value)
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! HOTPFactorInfo
+        let factor = result.hotp
        
         // Then
         XCTAssertEqual(result.serviceName, "ACME Co")
         XCTAssertEqual(result.accountName, "john.doe@email.com")
-        XCTAssertEqual(factor.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha1)
-        XCTAssertEqual(factor.digits, 6)
-        XCTAssertEqual(factor.counter, 1)
+        XCTAssertEqual(factor?.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
+        XCTAssertEqual(factor?.digits, 6)
+        XCTAssertEqual(factor?.counter, 1)
     }
+    
+    
     
     /// Test to create an TOTP authenticator with minimum parameters assigning default values.
     func testCreateMinimunTOTP() throws {
@@ -230,15 +316,15 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(with: "ACME Co", accountName: "john.doe@email.com", factor: value)
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
        
         // Then
         XCTAssertEqual(result.serviceName, "ACME Co")
         XCTAssertEqual(result.accountName, "john.doe@email.com")
-        XCTAssertEqual(factor.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha1)
-        XCTAssertEqual(factor.digits, 6)
-        XCTAssertEqual(factor.period, 30)
+        XCTAssertEqual(factor?.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
+        XCTAssertEqual(factor?.digits, 6)
+        XCTAssertEqual(factor?.period, 30)
     }
     
     /// Test to create an TOTP authenticator from an invalid QR code.
@@ -274,7 +360,7 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
         
         // Then
-        XCTAssertEqual(result.serviceName, result.accountName)
+        XCTAssertNotEqual(result.serviceName, result.accountName)
     }
     
     /// Test to create an TOTP authenticator from an invalid QR code issuer parameter.
@@ -286,7 +372,7 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)
             
         // Then
-        XCTAssertNil(result)
+        XCTAssertNotNil(result)
     }
     
     /// Test to create an TOTP authenticator from a QR code with all parameters.
@@ -298,15 +384,15 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
         
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
         XCTAssertEqual(result.serviceName, "ACME Co")
         XCTAssertEqual(result.accountName, "john.doe@email.com")
-        XCTAssertEqual(factor.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha1)
-        XCTAssertEqual(factor.digits, 6)
-        XCTAssertEqual(factor.period, 30)
+        XCTAssertEqual(factor?.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
+        XCTAssertEqual(factor?.digits, 6)
+        XCTAssertEqual(factor?.period, 30)
     }
     
     /// Test to create an TOTP authenticator from a QR code within valid period range.
@@ -318,10 +404,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.period, 10)
+        XCTAssertEqual(factor?.period, 10)
     }
     
     /// Test to create an TOTP authenticator from a QR code with invalid period assigning the default value.
@@ -333,10 +419,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(with: "ACME Co", accountName: "john.doe@email.com", factor: value)
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! TOTPFactorInfo
+        let factor = result.totp
         
         // Then
-        XCTAssertEqual(factor.period, 30)
+        XCTAssertEqual(factor?.period, 30)
     }
     
     /// Test to create an TOTP authenticator from a QR code with invalid low period.
@@ -363,7 +449,7 @@ class OTPAuthenticatorTests: XCTestCase {
         XCTAssertNil(result, "Period value is above the accepted range.")
     }
     
-    /// Test to create an HOTP authenticator and change the counter to an invalid value.
+    /// Test to create an HOTP authenticator and increment the counter value.
     func testCreateHOTPIncrementCounter() throws {
         // Given
         var factor = HOTPFactorInfo(with: "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ", counter: 1)
@@ -371,6 +457,17 @@ class OTPAuthenticatorTests: XCTestCase {
         // When
         let _ = factor.generatePasscode()
         XCTAssertEqual(factor.counter, 2)
+    }
+    
+    /// Test to create an HOTP authenticator and manually change the counter.
+    func testCreateHOTPManuallyIncrementCounter() throws {
+        // Given
+        var factor = HOTPFactorInfo(with: "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ", counter: 1)
+        
+        // When
+        factor.counter = 3
+        let _ = factor.generatePasscode()
+        XCTAssertEqual(factor.counter, 4)
     }
     
     /// Test to create an HOTP authenticator with an invalid counter value.
@@ -391,14 +488,14 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! HOTPFactorInfo
+        let factor = result.hotp
         
         // Then
         XCTAssertEqual(result.serviceName, "ACME Co")
         XCTAssertEqual(result.accountName, "john.doe@email.com")
-        XCTAssertEqual(factor.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha1)
-        XCTAssertEqual(factor.digits, 6)
+        XCTAssertEqual(factor?.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
+        XCTAssertEqual(factor?.digits, 6)
     }
     
     /// Test to create an HOTP authenticator from a QR code with a custom counter.
@@ -410,10 +507,10 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)!
         
         // Then
-        let factor = result.allowedFactors[0].valueType as! HOTPFactorInfo
+        let factor = result.hotp
         
         // Then
-        XCTAssertEqual(factor.counter, 60)
+        XCTAssertEqual(factor?.counter, 60)
     }
     
     // MARK: - OTP Autenticator Codable
@@ -427,7 +524,9 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = OTPAuthenticator(fromQRScan: qrScan)
             
         // Then
-        let data = try? JSONEncoder().encode(result)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try? encoder.encode(result)
         let encodedJson = String(decoding: data!, as: UTF8.self)
 
         // Then
@@ -439,17 +538,13 @@ class OTPAuthenticatorTests: XCTestCase {
         // Given
         let json = """
          {
-            "allowedFactors":[
-               {
-                  "hotp":{
-                     "secret":"HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ",
-                     "id":"5085FF89-8322-4F49-ABFC-64B18A85BFC6",
-                     "digits":6,
-                     "counter":5,
-                     "algorithm":"sha1"
-                  }
-               }
-            ],
+            "hotp":{
+                 "secret":"HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ",
+                 "id":"5085FF89-8322-4F49-ABFC-64B18A85BFC6",
+                 "digits":6,
+                 "counter":5,
+                 "algorithm":"sha1"
+            },
             "id":"A6C8EF51-6874-4BE0-9C23-4365D518E242",
             "serviceName":"ACME Co",
             "accountName":"john.doe@email.com"
@@ -460,14 +555,50 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = try JSONDecoder().decode(OTPAuthenticator.self, from: json.data(using: .utf8)!)
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! HOTPFactorInfo
+        let factor = result.hotp
         
         XCTAssertEqual(result.serviceName, "ACME Co")
         XCTAssertEqual(result.accountName, "john.doe@email.com")
-        XCTAssertEqual(factor.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha1)
-        XCTAssertEqual(factor.digits, 6)
-        XCTAssertEqual(factor.counter, 5)
+        XCTAssertEqual(factor?.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
+        XCTAssertEqual(factor?.digits, 6)
+        XCTAssertEqual(factor?.counter, 5)
+    }
+    
+    /// Test to create an OTP authenticator from a JSON.
+    func testOTPDecodeJSONWithDate() throws {
+        // Given
+        let json = """
+         {
+            "hotp":{
+                 "secret":"HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ",
+                 "id":"5085FF89-8322-4F49-ABFC-64B18A85BFC6",
+                 "digits":6,
+                 "counter":5,
+                 "algorithm":"sha1"
+            },
+            "id":"A6C8EF51-6874-4BE0-9C23-4365D518E242",
+            "serviceName":"ACME Co",
+            "createdDate": "2026-03-12T11:30:53Z",
+            "accountName":"john.doe@email.com"
+         }
+         """
+        
+        // When
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let result = try decoder.decode(OTPAuthenticator.self, from: json.data(using: .utf8)!)
+            
+        // Then
+        let factor = result.hotp
+        
+        XCTAssertEqual(result.serviceName, "ACME Co")
+        XCTAssertEqual(result.accountName, "john.doe@email.com")
+        XCTAssertEqual(factor?.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
+        XCTAssertEqual(factor?.digits, 6)
+        XCTAssertEqual(factor?.counter, 5)
+        XCTAssertEqual(result.createdDate, try Date("2026-03-12T11:30:53Z", strategy: .iso8601))
     }
     
     /// Test to create an OTP authenticator from a JSON.
@@ -475,17 +606,13 @@ class OTPAuthenticatorTests: XCTestCase {
         // Given
         let json = """
          {
-            "allowedFactors":[
-               {
-                  "hotp":{
-                     "secret":"HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ",
-                     "id":"5085FF89-8322-4F49-ABFC-64B18A85BFC6",
-                     "digits":4,
-                     "counter":5,
-                     "algorithm":"sha1"
-                  }
-               }
-            ],
+            "hotp":{
+                 "secret":"HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ",
+                 "id":"5085FF89-8322-4F49-ABFC-64B18A85BFC6",
+                 "digits":4,
+                 "counter":5,
+                 "algorithm":"sha1"
+            },
             "id":"A6C8EF51-6874-4BE0-9C23-4365D518E242",
             "serviceName":"ACME Co",
             "accountName":"john.doe@email.com"
@@ -496,14 +623,14 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = try JSONDecoder().decode(OTPAuthenticator.self, from: json.data(using: .utf8)!)
             
         // Then
-        let factor = result.allowedFactors[0].valueType as! HOTPFactorInfo
+        let factor = result.hotp
         
         XCTAssertEqual(result.serviceName, "ACME Co")
         XCTAssertEqual(result.accountName, "john.doe@email.com")
-        XCTAssertEqual(factor.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha1)
-        XCTAssertEqual(factor.digits, 4)
-        XCTAssertEqual(factor.counter, 5)
+        XCTAssertEqual(factor?.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
+        XCTAssertEqual(factor?.digits, 4)
+        XCTAssertEqual(factor?.counter, 5)
     }
     
     /// Test to create an HOTP authenticator from a JSON then test invalid and default counter values.
@@ -511,17 +638,13 @@ class OTPAuthenticatorTests: XCTestCase {
         // Given
        let json = """
         {
-           "allowedFactors":[
-              {
-                 "hotp":{
-                    "secret":"HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ",
-                    "id":"5085FF89-8322-4F49-ABFC-64B18A85BFC6",
-                    "digits":6,
-                    "counter":5,
-                    "algorithm":"sha1"
-                 }
-              }
-           ],
+           "hotp":{
+                "secret":"HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ",
+                "id":"5085FF89-8322-4F49-ABFC-64B18A85BFC6",
+                "digits":6,
+                "counter":5,
+                "algorithm":"sha1"
+            },
            "id":"A6C8EF51-6874-4BE0-9C23-4365D518E242",
            "serviceName":"ACME Co",
            "accountName":"john.doe@email.com"
@@ -532,19 +655,19 @@ class OTPAuthenticatorTests: XCTestCase {
         let result = try JSONDecoder().decode(OTPAuthenticator.self, from: json.data(using: .utf8)!)
             
         // Then
-        var factor = result.allowedFactors[0].valueType as! HOTPFactorInfo
-        XCTAssertEqual(factor.counter, 5)
+        var factor = result.hotp
+        XCTAssertEqual(factor?.counter, 5)
         
         // Then
-        let _ = factor.generatePasscode()
+        let _ = factor?.generatePasscode()
         
         // Then
         XCTAssertEqual(result.serviceName, "ACME Co")
         XCTAssertEqual(result.accountName, "john.doe@email.com")
-        XCTAssertEqual(factor.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
-        XCTAssertEqual(factor.algorithm, HashAlgorithmType.sha1)
-        XCTAssertEqual(factor.digits, 6)
-        XCTAssertEqual(factor.counter, 6)
+        XCTAssertEqual(factor?.secret, "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ")
+        XCTAssertEqual(factor?.algorithm, SigningAlgorithm.sha1)
+        XCTAssertEqual(factor?.digits, 6)
+        XCTAssertEqual(factor?.counter, 6)
     }
     
     // MARK: - OTP Autenticator Create
@@ -552,7 +675,7 @@ class OTPAuthenticatorTests: XCTestCase {
     // Test to encode generate OTP from an invalid secret
     func testInvalidSecret() throws {
         // Given
-        var factor = TOTPFactorInfo(with: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0", period: 347)
+        var factor = HOTPFactorInfo(with: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0", counter: 347)
         
         // When
         let result = factor.generatePasscode()

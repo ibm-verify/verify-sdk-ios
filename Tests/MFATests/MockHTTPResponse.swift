@@ -46,6 +46,7 @@ class MockURLProtocol: URLProtocol {
         var data: Data {
             get {
                 let url = Bundle.module.url(forResource: mock.fileResource, withExtension: "json", subdirectory: "Files")!
+                print("Test using: \(url.absoluteString)")
                 return try! Data(contentsOf: url)
             }
         }

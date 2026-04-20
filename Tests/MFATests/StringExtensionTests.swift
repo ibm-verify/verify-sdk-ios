@@ -16,10 +16,23 @@ class StringExtensionTests: XCTestCase {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
-    // Test empty string returning a nil.
+    // Test empty string returning Data of 0 bytes.
     func testDecodeEmptyString() throws {
         // Given
         let value = ""
+        
+        // When
+        let result = value.base32DecodedData()
+            
+        // Then
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.count, 0)
+    }
+    
+    // Test invalid characters returning nil.
+    func testDecodeInvalidString() throws {
+        // Given
+        let value = "@"
         
         // When
         let result = value.base32DecodedData()

@@ -5,8 +5,8 @@
     "page": 1,
     "verifications": [{
         "creationTime": "2022-06-07T23:54:55.518Z",
+        "correlationEnabled": true,
         "expiryTime": "2022-06-07T23:57:45.510Z",
-        "correlationEnabled": false,
         "authenticationMethods": [{
             "methodType": "signature",
             "subType": "face",
@@ -27,8 +27,8 @@
     },
     {
         "creationTime": "2022-06-07T23:54:45.510Z",
-        "expiryTime": "2022-06-07T23:57:45.510Z",
         "correlationEnabled": false,
+        "expiryTime": "2022-06-07T23:57:45.510Z",
         "authenticationMethods": [{
             "methodType": "signature",
             "subType": "userPresence",
