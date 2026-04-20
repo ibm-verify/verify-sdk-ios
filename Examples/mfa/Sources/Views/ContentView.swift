@@ -12,6 +12,19 @@ struct ContentView: View {
     @ObservedObject private var model: ScanViewModel = ScanViewModel()
     @State private var isPresented: Bool = false
     
+    // Simulator data.  NOTE: JSON has been obtained from QR code.
+    private let json = """
+    {
+        "code":"P8BEzUM3mE1amKMF76f3BOLTdCkgq_v70ZNCIl41tGZ.PIz1kyA31M3ttCkl4FfNg7vNKhauXizO.PmyQjlH0uRAmQT2ukQIbKJ38P.sexlfiyyv4gPdgrl1K9UXalcTAg",
+        "accountName":"johndoe",
+        "registrationUri":"https://sdk.verify.ibm.com/v1.0/authenticators/registration",
+        "version":{
+            "number":"1.0.0",
+            "platform":"com.ibm.security.access.verify"
+        }
+    }
+    """
+    
     var body: some View {
         if dataManager.exists() {
             AuthenticatorView()
@@ -43,7 +56,7 @@ struct ContentView: View {
                     .background(.blue)
                     .cornerRadius(8)
                     .sheet(isPresented: $isPresented) {
-                        CodeScannerView(codeTypes: [.qr]) { result in
+                        CodeScannerView(codeTypes: [.qr], simulatedData: json) { result in
                             model.validate(result: result)
                             isPresented.toggle()
                         }

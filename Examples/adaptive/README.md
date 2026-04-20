@@ -9,7 +9,7 @@ The resource links in the prerequisites explain and demonstrate how you create a
 ### Prerequisites
 
 - Install and configure the demo
-[Proxy SDK](https://github.com/IBM-Verify/adaptive-proxy-sdk-javascript) on a Node server by running `npm install adaptive-proxy-sdk`
+[Proxy SDK](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript) on a Node server by running `npm install adaptive-proxy-sdk`
 > NOTE: Also run `npm install` in the demo folder.
 
 - Generate and download the Trusteer SDK via IBM Verify admin portal for the application.

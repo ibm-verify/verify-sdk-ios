@@ -161,7 +161,7 @@ public class FidoService {
     }
 
     func assertAuthenticator<T>(_ relyingPartyURL: String, accessToken: String, username: String, assertion: PublicKeyCredential<AuthenticatorAssertionResponse>, type: T.Type, completion: @escaping (Result<T, Error>) -> Void) where T : AssertionResponse {
-        guard let url = URL(string: relyingPartyURL) else {
+        guard let url = URL(string: "\(relyingPartyURL)?returnJwt=true") else {
             completion(.failure(NetworkError.badURL))
             return
         }

@@ -10,7 +10,7 @@ import SwiftUI
 @MainActor
 class AuthenticatorViewModel: ObservableObject {
     private var dataManager: DataManager = DataManager()
-    private var authenticator: (any MFAAuthenticatorDescriptor)?
+    @Published var authenticator: (any MFAAuthenticatorDescriptor)? = nil
     
     var service: MFAServiceDescriptor?
     var pendingTransaction: PendingTransactionInfo?
@@ -18,18 +18,12 @@ class AuthenticatorViewModel: ObservableObject {
     init() {
         if let authenticator = dataManager.load() {
             self.authenticator = authenticator
-            self.accountName = authenticator.accountName
-            self.serviceName = authenticator.serviceName
-            self.factors = authenticator.allowedFactors
         }
     }
     
     @Published var errorMessage: String = String()
     @Published var isPresentingErrorAlert: Bool = false
     @Published var navigate: Bool = false
-    @Published var accountName: String = String()
-    @Published var serviceName: String = String()
-    @Published var factors: [FactorType] = []
     
     func resetAuthenticator() {
         self.authenticator = nil
@@ -37,17 +31,12 @@ class AuthenticatorViewModel: ObservableObject {
     }
     
     func saveAuthenticator() {
-        if var updateAuthenticator = self.authenticator {
-            updateAuthenticator.accountName = self.accountName
-            
-            do {
-                try dataManager.save(authenticator: updateAuthenticator)
-                self.authenticator = updateAuthenticator
-            }
-            catch let error {
-                errorMessage = error.localizedDescription
-                isPresentingErrorAlert = true
-            }
+        do {
+            try dataManager.save(authenticator: self.authenticator!)
+        }
+        catch let error {
+            errorMessage = error.localizedDescription
+            isPresentingErrorAlert = true
         }
     }
     
@@ -58,11 +47,10 @@ class AuthenticatorViewModel: ObservableObject {
         do {
             let controller = MFAServiceController(using: authenticator)
             let service = controller.initiate()
-            let token = try await service.refreshToken(using: authenticator.token.refreshToken!, accountName: self.accountName, pushToken: "zxy123", additionalData: nil)
+            let token = try await service.refreshToken(using: authenticator.token.refreshToken!, accountName: authenticator.accountName, pushToken: "zxy123", additionalData: nil)
                 
             var updateAuthenticator = authenticator
             updateAuthenticator.token = token
-            updateAuthenticator.accountName = self.accountName
             return updateAuthenticator
         }
         catch let error {
