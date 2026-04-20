@@ -6,16 +6,18 @@ import Foundation
 import Authentication
 
 /// The `CloudAuthenticator` enables authenticators to be able to perform transaction and token refresh operations.
-public struct CloudAuthenticator: MFAAuthenticatorDescriptor {
+public struct CloudAuthenticator: MFAAuthenticatorDescriptor, Sendable {
     public let refreshUri: URL
     public let transactionUri: URL
     public var theme: [String: String]
     public var token: TokenInfo
     public let id: String
-    public let serviceName: String
+    public var serviceName: String
     public var accountName: String
-    public let allowedFactors: [FactorType]
     public var publicKeyCertificate: String?
+    public private(set) var userPresence: UserPresenceFactorInfo?
+    public private(set) var biometric: BiometricFactorInfo?
+    public let createdDate: Date?
     
     /// A key value pair for configuring custom attributes of the authenticator.
     public let customAttributes: [String: String]

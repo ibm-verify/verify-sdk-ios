@@ -1,6 +1,6 @@
 {
     "rpId": "fidointerop.securitypoc.com",
-    "timeout": 60000,
+    "timeout": 2000,
     "challenge": "s0akg_1_-555llkGJqW9eaZtaZ1yQdTTxczMZZKEH2U",
     "allowCredentials": [
         {

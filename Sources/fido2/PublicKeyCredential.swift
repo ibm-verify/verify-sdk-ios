@@ -9,31 +9,31 @@ import Foundation
 /// Represents options provided when an authentication credential is created.
 public struct PublicKeyCredentialCreationOptions: Codable {
     /// Represents relying party attributes provided when a credential is created.
-    public var rp: PublicKeyCredentialRpEntity
+    public let rp: PublicKeyCredentialRpEntity
     
     /// Represents user account information provided when a credential is created.
-    public var user: PublicKeyCredentialUserEntity
+    public let user: PublicKeyCredentialUserEntity
     
     /// The challenge to be used for generating the newly created credential’s attestation object.
-    public var challenge: String
+    public let challenge: String
     
     /// Represents additional options provided when a credential is created.
-    public var pubKeyCredParams: [PublicKeyCredentialParameters]
+    public let pubKeyCredParams: [PublicKeyCredentialParameters]
     
     /// The time in milliseconds, that the caller is willing to wait for the call to complete.  Default is `30000` milliseconds.
-    public var timeout: Int
+    public let timeout: Int
     
     /// Represents credential parameters to be used for FIDO2 registration or authentication.
-    public var excludeCredentials: [PublicKeyCredentialDescriptor]
+    public let excludeCredentials: [PublicKeyCredentialDescriptor]
     
     /// Represents configuration items related to the authenticator, which are specified by the WebAuthn relying party.
-    public var authenticatorSelection: AuthenticatorSelectionCriteria
+    public let authenticatorSelection: AuthenticatorSelectionCriteria
     
     /// Represents credential passing preferences, which are used by the WebAuthn relying party when the credential is created.
-    public var attestation: AttestationConveyancePreference
+    public let attestation: AttestationConveyancePreference
     
     /// Represents additional parameters requesting additional processing by the client and authenticator.
-    public var extensions: AuthenticatorExtensions?
+    public let extensions: AuthenticatorExtensions?
     
     /// Creates a new `PublicKeyCredentialCreationOptions` instance.
     /// - Parameters:
@@ -61,40 +61,57 @@ public struct PublicKeyCredentialCreationOptions: Codable {
         self.authenticatorSelection = authenticatorSelection
         self.attestation = attestation
         self.pubKeyCredParams = pubKeyCredParams
+        self.extensions = nil
     }
     
     enum CodingKeys: String, CodingKey {
         case rp, user, challenge, timeout, excludeCredentials, authenticatorSelection, attestation, pubKeyCredParams
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        self.rp = try container.decode(PublicKeyCredentialRpEntity.self, forKey: .rp)
+        self.user = try container.decode(PublicKeyCredentialUserEntity.self, forKey: .user)
+        self.challenge = try container.decode(String.self, forKey: .challenge)
+        self.timeout = try container.decodeIfPresent(Int.self, forKey: .timeout) ?? 30000
+        self.excludeCredentials = try container.decodeIfPresent([PublicKeyCredentialDescriptor].self, forKey: .excludeCredentials) ?? []
+        self.authenticatorSelection = try container.decode(AuthenticatorSelectionCriteria.self, forKey: .authenticatorSelection)
+        self.pubKeyCredParams = try container.decode([PublicKeyCredentialParameters].self, forKey: .pubKeyCredParams)
+        self.attestation = try container.decodeIfPresent(AttestationConveyancePreference.self, forKey: .attestation) ?? .none
+        
+        self.extensions = nil
     }
 }
 
 /// The `PublicKeyCredentialRequestOptions` supplies get() with the data it needs to generate an assertion.
 public struct PublicKeyCredentialRequestOptions: Codable {
     /// The challenge to be used for generating the newly created credential’s attestation object.
-    public var challenge: String
+    public let challenge: String
     
     /// Represents relying party attributes provided when a credential is created.
-    public var rpId: String?
+    public let rpId: String?
     
     /// Contains a list of `PublicKeyCredentialDescriptor` objects representing public key credentials acceptable to the caller.
-    public var allowCredentials: [PublicKeyCredentialDescriptor]?
+    public let allowCredentials: [PublicKeyCredentialDescriptor]?
     
     /// Describes the Relying Party's requirements regarding user verification for the `get()` operation.
-    public var userVerification: UserVerificationRequirement
+    public let userVerification: UserVerificationRequirement?
     
     /// The time in milliseconds, that the caller is willing to wait for the call to complete.  Default is `30000` milliseconds.
-    public var timeout: Int
+    public let timeout: Int
     
     /// Represents additional parameters requesting additional processing by the client and authenticator.
-    public var extensions: AuthenticatorExtensions?
+    public let extensions: AuthenticatorExtensions?
     
     /// Creates a new `PublicKeyCredentialRequestOptions` instance.
-    public init(challenge: String, rpId: String = "", allowCredentials: [PublicKeyCredentialDescriptor] = [PublicKeyCredentialDescriptor](), userVerification: UserVerificationRequirement = .preferred, timeout: Int = 30000) {
+    public init(challenge: String, rpId: String = "", allowCredentials: [PublicKeyCredentialDescriptor] = [PublicKeyCredentialDescriptor](), userVerification: UserVerificationRequirement? = .preferred, timeout: Int = 30000) {
         self.challenge = challenge
         self.rpId = rpId
         self.allowCredentials = allowCredentials
         self.userVerification = userVerification
         self.timeout = timeout
+        self.extensions = nil
     }
     
     /// Creates a new instance by decoding from the given decoder
@@ -105,9 +122,9 @@ public struct PublicKeyCredentialRequestOptions: Codable {
         challenge = try container.decode(String.self, forKey: .challenge)
         rpId = try container.decode(String.self, forKey: .rpId)
         allowCredentials = try container.decodeIfPresent([PublicKeyCredentialDescriptor].self, forKey: .allowCredentials)
-        userVerification =  try container.decode(UserVerificationRequirement.self, forKey: .userVerification)
+        userVerification =  try container.decodeIfPresent(UserVerificationRequirement.self, forKey: .userVerification) ?? UserVerificationRequirement.preferred
         timeout = try container.decode(Int.self, forKey: .timeout)
-        extensions = try? container.decodeIfPresent(AuthenticatorExtensions.self, forKey: .extensions) ?? nil
+        extensions = nil
     }
 }
 
@@ -180,7 +197,7 @@ public struct PublicKeyCredentialUserEntity: Codable {
     }
     
     /// Encodes this value into the given encoder.
-    /// - Parameter encoder: The encoder to write data to.
+    /// - Parameter to: The encoder to write data to.
    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
@@ -265,7 +282,7 @@ public struct AuthenticatorAttestationResponse: AuthenticatorResponse {
     public var attestationObject: [UInt8]
     
     /// Encodes this value into the given encoder.
-    /// - Parameter encoder: The encoder to write data to.
+    /// - Parameter to: The encoder to write data to.
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
@@ -294,7 +311,7 @@ public struct AuthenticatorAssertionResponse: AuthenticatorResponse {
     public var userHandle: [UInt8]?
     
     /// Encodes this value into the given encoder.
-    /// - Parameter encoder: The encoder to write data to.
+    /// - Parameter to: The encoder to write data to.
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         

@@ -43,29 +43,39 @@ struct AuthenticatorView: View {
                 Text("Service name")
                     .fontWeight(.medium)
                     .padding([.bottom], 4)
-                Text(model.serviceName)
-                    .padding([.bottom], 16)
                 
-                
-                Text("Account nickname")
-                    .fontWeight(.medium)
-                    .padding([.bottom], 4)
-                TextField("Account nickname", text: $model.accountName)
-                    .frame(minHeight: 28)
-                    .padding(10)
-                    .overlay(RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(.systemGray5), lineWidth: 1))
-                
-                Text("Enrolled factors")
-                    .fontWeight(.medium)
-                    .padding([.top], 16)
-                List {
-                    ForEach(model.factors, id: \.id) { factor in
-                        EnrolmentView(success: true, name: factor.displayName)
+                if let authenticator = model.authenticator {
+                    Text(authenticator.serviceName)
+                        .padding([.bottom], 16)
+                    
+                    
+                    Text("Account nickname")
+                        .fontWeight(.medium)
+                        .padding([.bottom], 4)
+                    let accountNameBinding = Binding {
+                        // Getter: Return the non-optional value from the guaranteed object
+                        return model.authenticator!.accountName
+                    }
+                    set: { newValue in
+                        // Setter: Update the value in the @Published object
+                        model.authenticator?.accountName = newValue
+                    }
+
+                    TextField("Account nickname", text: accountNameBinding)
+                        .frame(minHeight: 28)
+                        .padding(10)
+                        .overlay(RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(.systemGray5), lineWidth: 1))
+                    
+                    Text("Enrolled factors")
+                        .fontWeight(.medium)
+                        .padding([.top], 16)
+                    List(authenticator.enrolledFactors, id: \.id) { factor in
+                        EnrolmentView(signatureImageName: factor.imageName, name: factor.displayName)
                             .listRowSeparator(.hidden)
                     }
+                    .listStyle(.plain)
                 }
-                .listStyle(.plain)
             }
             .padding(16)
             

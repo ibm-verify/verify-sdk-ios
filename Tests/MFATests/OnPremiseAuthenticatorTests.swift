@@ -36,7 +36,7 @@ class OnPremiseAuthenticatorTests: XCTestCase {
         
         // Then
         guard let authenticator = authenticator as? OnPremiseAuthenticator else {
-            throw OnPremiseRegistrationError.failedToParse
+            throw OnPremiseRegistrationError.dataInitializationFailed
         }
         
         // Then

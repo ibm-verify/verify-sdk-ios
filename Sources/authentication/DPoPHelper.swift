@@ -43,7 +43,7 @@ public enum DPoP {
     ///   - uri: A value that identifies the location of a remote server.
     ///   - method: The HTTP request method.
     ///   - accessToken: The access token to associate with the proof.
-    /// - Returns: A JSON Web Token (JWT) to be sent with an HTTP request using the DPoP header field..
+    /// - Returns: A JSON Web Token (JWT) to be sent with an HTTP request using the DPoP header field.
     public static func generateProof(_ privateKey: RSA.Signing.PrivateKey, hashAlgorithm: any HashFunction = SHA256(), uri: String, method: method = .post, accessToken: String? = nil) throws -> String {
         
         var algorithmName  = "RS256"

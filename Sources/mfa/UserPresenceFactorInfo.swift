@@ -5,16 +5,22 @@
 import Foundation
 
 /// A signature factor refers to the use of a digital signature as a second factor to authenticate an external entity.
-public struct UserPresenceFactorInfo: Factor {
-    public let id: UUID
+public struct UserPresenceFactorInfo: Factor, Sendable {
+    public let id: String
     
-    public let displayName = "User presence"
+    public var displayName: String {
+        String(localized: "User presence", bundle: .module)
+    }
+    
+    public var imageName: String {
+        "hand.tap"
+    }
     
     /// The name to identify the Keychain item associated with the factor.
     public let name: String
     
     /// The algorithm used to calculate a hash for data signing.
-    public let algorithm: HashAlgorithmType
+    public let algorithm: SigningAlgorithm
     
     private enum CodingKeys: String, CodingKey {
         case id

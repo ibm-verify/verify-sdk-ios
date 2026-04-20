@@ -78,12 +78,4 @@ class PublicKeyCredentialRequestOptionsTest: XCTestCase {
         XCTAssertNotNil(result)
     }
     
-    func testCreateAddExtension() throws {
-        // When
-        var result = PublicKeyCredentialRequestOptions(challenge: UUID().uuidString)
-        result.extensions = AuthenticatorExtensions(txAuthSimple: "This is a transfer.")
-        
-        // Then
-        XCTAssertNotNil(result)
-    }
 }

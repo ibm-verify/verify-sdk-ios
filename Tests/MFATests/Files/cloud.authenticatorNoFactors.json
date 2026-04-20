@@ -1,0 +1,18 @@
+{
+  "theme" : {},
+  "token" : {
+    "refreshToken" : "d4e5f6",
+    "accessToken" : "a1b2c3",
+    "expiresIn" : 90,
+    "token_type" : "Bearer",
+    "expires_on" : 786427223.749377
+  },
+  "transactionUri" : "https:\/\/sdk.verify.ibm.com\/v1.0\/authenticators\/verifications",
+  "customAttributes" : {
+    "privacyUri" : "https:\/\/sdk.verify.ibm.com\/privacy.html"
+  },
+  "id" : "b0bf603f-ae9b-49ce-ad07-70f5777377db",
+  "refreshUri" : "https:\/\/sdk.verify.ibm.com\/v1.0\/authenticators\/registration?metadataInResponse=false",
+  "accountName" : "Cloud account",
+  "serviceName" : "IBM Verify SDK Tenant"
+}

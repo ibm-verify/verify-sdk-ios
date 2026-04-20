@@ -1,5 +1,41 @@
 Note: This is in reverse chronological order, so newer entries are added to the top.
 
+# v3.1.0
+28 February 2026
+### IBM Verify DC SDK for iOS
+* Remove support for digital credentials. Refer to https://github.com/IBM-Verify/verify-mobile-dc-wallet-ios
+
+### IBM Verify Core SDK for iOS
+* Increment version
+* Copyright and naming update
+* Improved support for reading and writing data and private keys
+* Shared Keychain support
+* Enhanced logging support in `URLSession+Extension`
+
+### IBM Verify Authentication SDK for iOS
+* Increment version
+* Copyright and naming update
+* `oidc` removed as default scope
+
+### IBM Verify Adaptive SDK for iOS
+* Increment version
+* Copyright and naming update
+
+### IBM Verify FIDO2™ SDK for iOS
+* Increment version
+* Copyright and naming update
+* Custom Credential Provider support
+
+### IBM Verify MFA SDK for iOS
+* Increment version
+* Copyright and naming update
+* Naming consistency
+* Improved signature enrollment and transaction signing
+* Separated one-time (OTP) from multi-factor (MFA) authenticators
+* Transaction includes `expiryTime` and `coorelationCode`
+* Support for `Sendable` in factors and authenticators
+* Added `createdDate` for authenticators
+
 # v3.0.11
 15 September 2024
 ### IBM Verify DC SDK for iOS

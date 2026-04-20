@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="22505" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="l9G-bJ-S1B">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="24412" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="l9G-bJ-S1B">
     <device id="retina6_1" orientation="portrait" appearance="light"/>
     <dependencies>
-        <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22504"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="24405"/>
         <capability name="Image references" minToolsVersion="12.0"/>
         <capability name="Named colors" minToolsVersion="9.0"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
@@ -20,7 +19,7 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <scrollView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="kv9-NN-ch8">
-                                <rect key="frame" x="0.0" y="72" width="414" height="790"/>
+                                <rect key="frame" x="0.0" y="120" width="414" height="708"/>
                                 <subviews>
                                     <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" baselineRelativeArrangement="YES" translatesAutoresizingMaskIntoConstraints="NO" id="jZ2-Jd-IZC">
                                         <rect key="frame" x="0.0" y="0.0" width="414" height="637"/>
@@ -102,7 +101,7 @@
                                                                 <rect key="frame" x="16" y="16" width="350" height="194.5"/>
                                                                 <subviews>
                                                                     <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="NG0-gv-J6Y">
-                                                                        <rect key="frame" x="0.0" y="-5" width="350" height="29.5"/>
+                                                                        <rect key="frame" x="0.0" y="-6" width="350" height="31.5"/>
                                                                         <imageReference key="image" image="building.2.fill" catalog="system" symbolScale="large"/>
                                                                         <preferredSymbolConfiguration key="preferredSymbolConfiguration" scale="medium"/>
                                                                     </imageView>
@@ -196,11 +195,11 @@
             <objects>
                 <viewController id="c0W-Ti-tch" customClass="LoginViewController" customModule="FIDO2App" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="mrN-w5-GsF">
-                        <rect key="frame" x="0.0" y="0.0" width="414" height="886"/>
+                        <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="32" translatesAutoresizingMaskIntoConstraints="NO" id="2De-ce-GhE">
-                                <rect key="frame" x="24" y="48" width="272" height="516"/>
+                                <rect key="frame" x="24" y="96" width="272" height="516"/>
                                 <subviews>
                                     <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="lem-vW-tgl">
                                         <rect key="frame" x="0.0" y="0.0" width="272" height="152.5"/>
@@ -288,7 +287,7 @@
                                 </subviews>
                             </stackView>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="oWP-lZ-2j1">
-                                <rect key="frame" x="24" y="826" width="42" height="48"/>
+                                <rect key="frame" x="24" y="788" width="42" height="48"/>
                                 <color key="backgroundColor" name="AccentColor"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="48" id="urB-vN-lnP"/>
@@ -332,11 +331,11 @@
             <objects>
                 <viewController id="aey-lv-Jf0" customClass="WhoAmIViewController" customModule="FIDO2App" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="706-KE-0Iu">
-                        <rect key="frame" x="0.0" y="0.0" width="414" height="886"/>
+                        <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="32" translatesAutoresizingMaskIntoConstraints="NO" id="Zgu-SS-AGe">
-                                <rect key="frame" x="24" y="48" width="272" height="384.5"/>
+                                <rect key="frame" x="24" y="96" width="272" height="384.5"/>
                                 <subviews>
                                     <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="uBe-HQ-nJx">
                                         <rect key="frame" x="0.0" y="0.0" width="272" height="135"/>
@@ -393,7 +392,7 @@
                                 </subviews>
                             </stackView>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="U6f-F4-6ow">
-                                <rect key="frame" x="24" y="826" width="74" height="48"/>
+                                <rect key="frame" x="24" y="788" width="74" height="48"/>
                                 <color key="backgroundColor" name="AccentColor"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="48" id="PJm-j9-K8Q"/>
@@ -435,11 +434,11 @@
             <objects>
                 <viewController id="BYZ-38-t0r" customClass="AttestationViewController" customModule="FIDO2App" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="8bC-Xf-vdC">
-                        <rect key="frame" x="0.0" y="0.0" width="414" height="886"/>
+                        <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="32" translatesAutoresizingMaskIntoConstraints="NO" id="j7Z-0L-m8Q">
-                                <rect key="frame" x="24" y="48" width="366" height="205"/>
+                                <rect key="frame" x="24" y="96" width="366" height="205"/>
                                 <subviews>
                                     <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="Mwi-CE-5bL">
                                         <rect key="frame" x="0.0" y="0.0" width="366" height="81"/>
@@ -494,7 +493,7 @@
                                 </subviews>
                             </stackView>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="wOb-ka-bf6">
-                                <rect key="frame" x="24" y="826" width="366" height="48"/>
+                                <rect key="frame" x="24" y="778" width="366" height="48"/>
                                 <color key="backgroundColor" systemColor="systemBlueColor"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="48" id="axH-No-GgE"/>
@@ -536,11 +535,11 @@
             <objects>
                 <viewController id="suh-RP-bpp" customClass="AttestationInfoViewController" customModule="FIDO2App" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="j57-6S-GHc">
-                        <rect key="frame" x="0.0" y="0.0" width="414" height="886"/>
+                        <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="32" translatesAutoresizingMaskIntoConstraints="NO" id="EMT-h8-q7T">
-                                <rect key="frame" x="24" y="48" width="366" height="165"/>
+                                <rect key="frame" x="24" y="96" width="366" height="165"/>
                                 <subviews>
                                     <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="qGs-4e-dGc" userLabel="Stack Title">
                                         <rect key="frame" x="0.0" y="0.0" width="366" height="81"/>
@@ -577,7 +576,7 @@
                                 </subviews>
                             </stackView>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="n1w-eu-pMA">
-                                <rect key="frame" x="24" y="766" width="366" height="48"/>
+                                <rect key="frame" x="24" y="718" width="366" height="48"/>
                                 <color key="backgroundColor" systemColor="systemBlueColor"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="48" id="6Xz-IY-8le"/>
@@ -592,7 +591,7 @@
                                 </connections>
                             </button>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="O5F-70-3eK">
-                                <rect key="frame" x="24" y="826" width="366" height="48"/>
+                                <rect key="frame" x="24" y="778" width="366" height="48"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="48" id="eu0-GZ-osm"/>
                                 </constraints>
@@ -640,7 +639,7 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="umC-Er-JXn">
-                                <rect key="frame" x="20" y="802" width="374" height="48"/>
+                                <rect key="frame" x="20" y="768" width="374" height="48"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="48" id="iIa-9K-4pD"/>
                                 </constraints>
@@ -655,7 +654,7 @@
                                 </connections>
                             </button>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="7ie-5w-bdM">
-                                <rect key="frame" x="20" y="742" width="374" height="48"/>
+                                <rect key="frame" x="20" y="708" width="374" height="48"/>
                                 <color key="backgroundColor" systemColor="systemBlueColor"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="48" id="AKk-XQ-Qbn"/>
@@ -671,10 +670,10 @@
                                 </connections>
                             </button>
                             <scrollView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" showsHorizontalScrollIndicator="NO" translatesAutoresizingMaskIntoConstraints="NO" id="ur6-ja-Nft">
-                                <rect key="frame" x="0.0" y="48" width="414" height="662"/>
+                                <rect key="frame" x="0.0" y="96" width="414" height="580"/>
                                 <subviews>
                                     <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="Et6-2R-EW5">
-                                        <rect key="frame" x="20" y="48" width="374" height="500.5"/>
+                                        <rect key="frame" x="20" y="48" width="374" height="501"/>
                                         <subviews>
                                             <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="12" translatesAutoresizingMaskIntoConstraints="NO" id="74i-Bh-duQ" userLabel="Stack Title">
                                                 <rect key="frame" x="0.0" y="0.0" width="374" height="97"/>
@@ -763,7 +762,7 @@
                                                 </subviews>
                                             </stackView>
                                             <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="12" translatesAutoresizingMaskIntoConstraints="NO" id="Ke3-Cw-EZw">
-                                                <rect key="frame" x="0.0" y="379" width="374" height="121.5"/>
+                                                <rect key="frame" x="0.0" y="379" width="374" height="122"/>
                                                 <subviews>
                                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Allow transaction confirmation " textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mjx-Vv-97V">
                                                         <rect key="frame" x="0.0" y="0.0" width="374" height="18"/>
@@ -772,19 +771,19 @@
                                                         <nil key="highlightedColor"/>
                                                     </label>
                                                     <switch opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" contentHorizontalAlignment="center" contentVerticalAlignment="center" title="Assertion options" translatesAutoresizingMaskIntoConstraints="NO" id="lvN-e8-aES">
-                                                        <rect key="frame" x="0.0" y="30" width="376" height="31"/>
+                                                        <rect key="frame" x="0.0" y="30" width="376" height="28"/>
                                                         <connections>
                                                             <action selector="onTxnSigningChange:" destination="uLb-8K-83g" eventType="valueChanged" id="1sw-wv-HbN"/>
                                                         </connections>
                                                     </switch>
                                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Transaction message" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Qnq-Pw-Vl3">
-                                                        <rect key="frame" x="0.0" y="73" width="374" height="18"/>
+                                                        <rect key="frame" x="0.0" y="70" width="374" height="18"/>
                                                         <fontDescription key="fontDescription" type="system" pointSize="15"/>
                                                         <color key="textColor" systemColor="systemGrayColor"/>
                                                         <nil key="highlightedColor"/>
                                                     </label>
                                                     <textField opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="248" enabled="NO" contentHorizontalAlignment="left" contentVerticalAlignment="center" placeholder="Message to sign" textAlignment="natural" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="8Qj-CJ-NmM">
-                                                        <rect key="frame" x="0.0" y="103" width="374" height="18.5"/>
+                                                        <rect key="frame" x="0.0" y="100" width="374" height="22"/>
                                                         <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                                         <textInputTraits key="textInputTraits"/>
                                                     </textField>
@@ -840,11 +839,11 @@
             <objects>
                 <viewController id="Vjz-gM-NVA" customClass="AssertionInfoViewController" customModule="FIDO2App" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="H0j-vz-glC">
-                        <rect key="frame" x="0.0" y="0.0" width="414" height="886"/>
+                        <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="32" translatesAutoresizingMaskIntoConstraints="NO" id="WKl-K4-KUJ">
-                                <rect key="frame" x="24" y="48" width="366" height="100.5"/>
+                                <rect key="frame" x="24" y="96" width="366" height="100.5"/>
                                 <subviews>
                                     <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="PGD-Na-Lyc">
                                         <rect key="frame" x="0.0" y="0.0" width="366" height="100.5"/>
@@ -869,7 +868,7 @@
                                 </subviews>
                             </stackView>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Z0P-Ai-w75">
-                                <rect key="frame" x="24" y="826" width="366" height="48"/>
+                                <rect key="frame" x="24" y="788" width="366" height="48"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="48" id="Kwv-To-bdh"/>
                                 </constraints>
@@ -882,7 +881,7 @@
                                 </connections>
                             </button>
                             <scrollView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="bCg-eK-y2z">
-                                <rect key="frame" x="24" y="160.5" width="378" height="653.5"/>
+                                <rect key="frame" x="24" y="208.5" width="378" height="567.5"/>
                                 <subviews>
                                     <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="32" translatesAutoresizingMaskIntoConstraints="NO" id="22I-U7-4CL">
                                         <rect key="frame" x="0.0" y="0.0" width="378" height="667"/>
@@ -935,26 +934,26 @@
         <segue reference="UP4-6B-a9j"/>
     </inferredMetricsTieBreakers>
     <resources>
-        <image name="building.2.fill" catalog="system" width="128" height="117"/>
+        <image name="building.2.fill" catalog="system" width="108" height="128"/>
         <image name="cloud.fill" catalog="system" width="128" height="87"/>
-        <image name="lock.shield" catalog="system" width="128" height="119"/>
+        <image name="lock.shield" catalog="system" width="121" height="128"/>
         <namedColor name="AccentColor">
             <color red="0.0" green="0.46000000000000002" blue="0.89000000000000001" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>
         <systemColor name="linkColor">
-            <color red="0.0" green="0.47843137250000001" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+            <color red="0.0" green="0.47843137254901963" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </systemColor>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>
         <systemColor name="systemBlueColor">
-            <color red="0.0" green="0.47843137250000001" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+            <color red="0.0" green="0.53333333333333333" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </systemColor>
         <systemColor name="systemGrayColor">
-            <color red="0.5568627451" green="0.5568627451" blue="0.57647058819999997" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+            <color red="0.55686274509803924" green="0.55686274509803924" blue="0.57647058823529407" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </systemColor>
         <systemColor name="systemRedColor">
-            <color red="1" green="0.23137254900000001" blue="0.18823529410000001" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+            <color red="1" green="0.2196078431372549" blue="0.23529411764705882" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </systemColor>
     </resources>
 </document>

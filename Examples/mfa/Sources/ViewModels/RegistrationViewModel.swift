@@ -7,6 +7,7 @@ import MFA
 import Core
 import CryptoKit
 import SwiftUI
+import LocalAuthentication
 
 @MainActor
 class RegistrationViewModel: ObservableObject {
@@ -24,29 +25,18 @@ class RegistrationViewModel: ObservableObject {
         do {
             let provider = try await controller.initiate(with: self.accountName)
                     
-            while let factor = await provider.nextEnrollment() {
-                print("Enrolling \(factor)")
-                
-                // Get the next enrollable signature.
-                guard let factor = await provider.nextEnrollment() else {
-                   return
-                }
-
-                // Create the key-pair using default SHA512 hash.
-                let key = RSA.Signing.PrivateKey()
-                
-                // Sign the data with the private key.
-                let signature = try sign(privateKey: key, factor: factor)
-
-                // Add to the Keychain.
-                try KeychainService.default.addItem("biometric", value: key.derRepresentation, accessControl: factor.biometricAuthentication ? .biometryCurrentSet : nil)
-               
-                // Enroll the factor.
-                try await provider.enroll(with: "biometric", publicKey: key.publicKey.x509Representation, signedData: signature)
-
-                // try await provider.enroll()
+            // Check if we can enrol user presence with auto-generated keypairs.
+            if provider.canEnrollUserPresence {
+                try await provider.enrollUserPresence()
             }
-           
+            
+            if provider.canEnrollBiometric {
+                // Enroll the factor. Handle the persistance of the private key
+                try await provider.enrollBiometric(savePrivateKey: DataManager.saveBiometricPrivateKey,
+                    context: LAContext(),
+                    reason: "Verify with biometrics")
+            }
+            
             // Generate the authenticator
             let authenticator = try await provider.finalize()
             await saveAuthenticator(authenticator: authenticator)
@@ -68,26 +58,5 @@ class RegistrationViewModel: ObservableObject {
             errorMessage = error.localizedDescription
             isPresentingErrorAlert = true
         }
-    }
-    
-    func sign(privateKey: RSA.Signing.PrivateKey, factor: EnrollableSignature) throws -> String {
-        // Create the signature with the hash
-        if factor.algorithm == .sha256 {
-            let value = SHA256.hash(data:  Data(factor.dataToSign.utf8))
-            let signature = try privateKey.signature(for: value)
-            return signature.rawRepresentation.base64UrlEncodedString()
-        }
-        else if factor.algorithm == .sha384 {
-            let value = SHA384.hash(data:  Data(factor.dataToSign.utf8))
-            let signature = try privateKey.signature(for: value)
-            return signature.rawRepresentation.base64UrlEncodedString()
-        }
-        else if factor.algorithm == .sha512 {
-            let value = SHA512.hash(data:  Data(factor.dataToSign.utf8))
-            let signature = try privateKey.signature(for: value)
-            return signature.rawRepresentation.base64UrlEncodedString()
-        }
-        
-        throw MFAServiceError.invalidSigningHash
     }
 }

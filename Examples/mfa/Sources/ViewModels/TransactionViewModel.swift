@@ -32,83 +32,87 @@ class TransactionViewModel: ObservableObject {
     
     // Approve a transaction
     func approveTransaction() async {
-        if let authenticator = dataManager.load() {
-            if let factorType = authenticator.allowedFactors.first(where: {$0.id == transactionInfo.factorID }) {
-                do {
-                    // Get the private key and sign the transaction data manually
-                    //let signedData = performDataSigning(factorType: factorType)
-                    
-                    // Look at the denyTransaction function letting the SDK handle the key retrieval and signing.
-                    //try await self.service.completeTransaction(action: .verify, signedData: signedData)
-                    try await self.service.completeTransaction(action: .verify, factor: factorType)
-                }
-                catch let error {
-                    isPresentingErrorAlert = true
-                    errorMessage = error.localizedDescription
-                }
-            }
+        guard let authenticator = dataManager.load() else {
+            isPresentingErrorAlert = true
+            errorMessage = "The authenticator was not found. Please try logging out and back in."
+            return
+        }
+        
+        let controller = MFAServiceController(using: authenticator)
+        
+        guard let factor = controller.transactionFactor(for: transactionInfo) else {
+            isPresentingErrorAlert = true
+            errorMessage = "The factor identifier was not found with the registered authenticator."
+            return
+        }
+        
+        do {
+            // If you want to perform the private key extraction and signing, uncomment the following 2-lines.
+            // let signedData = performDataSigning(factorType: factor)
+            // try await self.service.completeTransaction(action: .verify, signedData: signedData)
+            
+            // This is the convenience way of completing a transaction where the MFA component performs the above 2-lines.
+            try await self.service.completeTransaction(factor: factor)
+        }
+        catch {
+            isPresentingErrorAlert = true
+            errorMessage = error.localizedDescription
         }
     }
     
     // Deny a transaction
     func denyTransaction() async {
-        if let authenticator = dataManager.load() {
-            if let factorType = authenticator.allowedFactors.first(where: {$0.id == transactionInfo.factorID }) {
-                do {
-                    // This is the convenience way of completing a transaction.
-                    try await self.service.completeTransaction(action: .deny, factor: factorType)
-                }
-                catch let error {
-                    isPresentingErrorAlert = true
-                    errorMessage = error.localizedDescription
-                }
-            }
+        guard let authenticator = dataManager.load() else {
+            isPresentingErrorAlert = true
+            errorMessage = "The authenticator was not found. Please try logging out and back in."
+            return
         }
-    }
-    
-    private func performDataSigning(factorType: FactorType) -> String {
-        var hashAlgorithmType: HashAlgorithmType = .sha512
-        var name: String = String()
         
-        switch factorType {
-        case .userPresence(let value):
-            hashAlgorithmType = value.algorithm
-            name = value.name
-        case .face(let value):
-            hashAlgorithmType = value.algorithm
-            name = value.name
-        case .fingerprint(let value):
-            hashAlgorithmType = value.algorithm
-            name = value.name
-        default:
-            break
+        guard let factor = authenticator.enrolledFactors.first(where: { $0.name == transactionInfo.keyName }) else {
+            isPresentingErrorAlert = true
+            errorMessage = "The factor identifier was not found with the registered authenticator."
+            return
         }
         
         do {
-            let data = try KeychainService.default.readItem(name)
-            let privateKey = try RSA.Signing.PrivateKey(derRepresentation: data)
-            
-            if hashAlgorithmType == .sha256 {
-                let value = SHA256.hash(data:  Data(transactionInfo.dataToSign.utf8))
-                let signature = try privateKey.signature(for: value)
-                return signature.rawRepresentation.base64UrlEncodedString()
-            }
-            else if hashAlgorithmType == .sha384 {
-                let value = SHA384.hash(data:  Data(transactionInfo.dataToSign.utf8))
-                let signature = try privateKey.signature(for: value)
-                return signature.rawRepresentation.base64UrlEncodedString()
-            }
-            else if hashAlgorithmType == .sha512 {
-                let value = SHA512.hash(data:  Data(transactionInfo.dataToSign.utf8))
-                let signature = try privateKey.signature(for: value)
-                return signature.rawRepresentation.base64UrlEncodedString()
-            }
-            else {
-                return ""
-            }
+            // This is the convenience way of completing a transaction.
+            try await self.service.completeTransaction(action: .deny, factor: factor)
         }
         catch {
-            return ""
+            isPresentingErrorAlert = true
+            errorMessage = error.localizedDescription
+        }
+    }
+    
+    internal func performDataSigning(factorType: FactorType) -> String? {
+        guard let result = factorType.nameAndAlgorithm else {
+            return nil
+        }
+
+        do {
+            let keyData = try KeychainService.default.readItem(result.name, searchType: .key)
+            let privateKey = try RSA.Signing.PrivateKey(derRepresentation: keyData)
+
+            let messageData = Data(transactionInfo.dataToSign.utf8)
+            let digest = hash(messageData, using: result.algorithm)
+
+            let signature = try privateKey.signature(for: digest)
+            return signature.rawRepresentation.base64UrlEncodedString()
+
+        } catch {
+            // You may want to log the error here
+            return nil
+        }
+    }
+
+    private func hash(_ data: Data, using algorithm: SigningAlgorithm) -> Data {
+        switch algorithm {
+        case .sha384:
+            return Data(SHA384.hash(data: data))
+        case .sha512:
+            return Data(SHA512.hash(data: data))
+        default:
+            return Data(SHA256.hash(data: data))
         }
     }
 }
