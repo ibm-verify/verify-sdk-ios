@@ -4,16 +4,16 @@
 
 import Foundation
 
-/// A structure that provides suport for the `Codable` protocol based an the `Any` type.
+/// A structure that provides suport for the ``Codable`` protocol based an the ``Any`` type.
 /// - SeeAlso: ``AnyEncodable``
 /// - SeeAlso: ``AnyDecodable``
 @frozen public struct AnyCodable: Codable {
-    /// The value of an `Codable` type.
+    /// The value of an ``Codable`` type.
     public let value: Any
 
     /// Initialize the structure with a given type.
     /// - Parameters:
-    ///   - value: An optional value of a `Codable` type.
+    ///   - value: An optional value of a ``Codable`` type.
     public init<T>(_ value: T?) {
         self.value = value ?? ()
     }
@@ -164,7 +164,7 @@ extension AnyCodable: Hashable {
 
 // MARK: AnyDecodable
 
-/// A structure that provides suport for the `Decodable` protocol based an the `Any` type.
+/// A structure that provides suport for the ``Decodable`` protocol based an the ``Any`` type.
 ///
 /// ```swift
 /// let json = """
@@ -198,14 +198,14 @@ extension AnyCodable: Hashable {
 
 /// A type that can decode itself from an external representation.
 @usableFromInline protocol _AnyDecodable {
-    /// The value of an `Decodable` type.
+    /// The value of an ``Decodable`` type.
     var value: Any {
         get
     }
     
     /// Creates a new decodable value usiing a placeholder type.
     /// - Parameters:
-    ///   - value: An optional value of a `Decodable` type.
+    ///   - value: An optional value of a ``Decodable`` type.
     init<T>(_ value: T?)
 }
 
@@ -366,7 +366,7 @@ extension AnyDecodable: Hashable {
 
 // MARK: AnyEncodable
 
-/// A structure that provides suport for the `Encodabe` protocol based an the `Any` type.
+/// A structure that provides suport for the ``Encodabe`` protocol based an the ``Any`` type.
 /// ```swift
 /// let value: [String: AnyEncodable] = [
 ///    "boolean": true,
@@ -397,14 +397,14 @@ extension AnyDecodable: Hashable {
 
 /// A type that can encode itself to an external representation.
 @usableFromInline protocol _AnyEncodable {
-    /// The value of an `Encodable` type.
+    /// The value of an ``Encodable`` type.
     var value: Any {
         get
     }
     
     /// Creates a new encodable value using a placeholder type.
     /// - Parameters:
-    ///   - value: An optional value of a `Encodable` type.
+    ///   - value: An optional value of a ``Encodable`` type.
     init<T>(_ value: T?)
 }
 

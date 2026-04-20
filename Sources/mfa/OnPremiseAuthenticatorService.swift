@@ -49,6 +49,9 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
     }
     
     /// Refresh the OAuth token associated with the registered authenticator.
+    ///
+    /// The resulting access token is automatically updated in the instance of the `OnPremiseAuthenticatorService` for subsequent operations.
+    ///
     /// - Parameters:
     ///   - refreshToken: The refresh token of the existing authenticator registration.
     ///   - accountName: The account name associated with the service.
@@ -59,25 +62,14 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
     /// Communicate with Apple Push Notification service (APNs) and receive a unique device token that identifies your app.  Refer to [Registering Your App with APNs](https://developer.apple.com/documentation/usernotifications/registering_your_app_with_apns).
     public func refreshToken(using refreshToken: String, accountName: String? = nil, pushToken: String? = nil, additionalData: [String: Any]? = nil) async throws -> TokenInfo {
         var attributes = MFAAttributeInfo.dictionary(snakeCaseKey: true)
-        
-        if let accountName = accountName {
-            attributes["accountName"] = accountName
-        }
-        
-        if let pushToken = pushToken {
-            attributes["pushToken"] = pushToken
-        }
-
+        attributes["accountName"] = accountName
+        attributes["pushToken"] = pushToken
         attributes["tenant_id"] = self.authenticatorId
         
         // If there is additional data, merge with the parameters retaining existing values and only adding 10 additional paramterers
-        if let additionalData = additionalData {
-            var index = 1
-            additionalData.forEach {
-                if attributes.index(forKey: $0.key) == nil && index <= 10 {
-                    attributes.updateValue($0.value, forKey: $0.key)
-                    index += 1
-                }
+        if let additionalData {
+            for (key, value) in additionalData.prefix(10) where attributes[key] == nil {
+                attributes[key] = value
             }
         }
         
@@ -93,11 +85,11 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
     
     /// Retrieve the next transaction that is associated with an authenticator registration.
     ///
-    /// When a `transactionID` is supplied, information relating to that transaction identifier is returned while in a PENDING state.  Otherwise the next transaction is returned.
+    /// When a `transactionId` is supplied, information relating to that transaction identifier is returned while in a PENDING state.  Otherwise the next transaction is returned.
     /// - Parameters:
-    ///   - transactionID: The transaction verification identifier.
-    /// - Returns: A `NextTransactionInfo` representing the transaction and a count of the number of pending transactions.
-    public func nextTransaction(with transactionID: String? = nil) async throws -> NextTransactionInfo {
+    ///   - transactionId: The transaction verification identifier.
+    ///   - returns: A `NextTransactionInfo` representing the transaction and a count of the number of pending transactions.
+    public func nextTransaction(with transactionId: String? = nil) async throws -> NextTransactionInfo {
         // Set the decoding behaviour.
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8061FormatterBehavior)
@@ -108,7 +100,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         
         // Perfom the request to query for pending transactions.
         guard let transactionResult = try? await self.urlSession.dataTask(for: resource) else {
-            throw MFAServiceError.invalidDataResponse
+            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from transaction response.", bundle: .module))
         }
         
         // Check if there were any transactions in the payload.
@@ -117,7 +109,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         }
         
         // Process the transactions, which involves making another request to get the verification challenge data.
-        guard let pendingTransaction = try? await createPendingTransaction(with: transactionResult, transactionId: transactionID) else {
+        guard let pendingTransaction = try? await createPendingTransaction(with: transactionResult, transactionId: transactionId) else {
             throw MFAServiceError.unableToCreateTransaction
         }
         
@@ -136,7 +128,15 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
             self.currentPendingTransaction = nil
         }
         
-        let data: [String: Any] = ["signedChallenge": userAction == .verify ? signedData : ""]
+        try await completeTransaction(transaction: pendingTransaction, action: userAction, signedData: signedData)
+    }
+    
+    
+    public func completeTransaction(transaction pendingTransaction: PendingTransactionInfo, action userAction: UserAction, signedData: String) async throws {
+        let data: [String: Any] = [
+            "signedChallenge": userAction == .verify ? signedData : "",
+            "userAction": userAction.rawValue
+        ]
         
         // Covert body dictionary to Data.
         let body = try? JSONSerialization.data(withJSONObject: data, options: [])
@@ -147,11 +147,11 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         
         // Perfom the request.
         do {
-           return try await self.urlSession.dataTask(for: resource)
+            return try await self.urlSession.dataTask(for: resource)
         }
         catch let error {
             // If the request is a user deny, no error should be returned.
-            if userAction == .deny {
+            if userAction == .deny || userAction == .markAsFraud {
                 return
             }
             else {
@@ -161,8 +161,10 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
     }
     
     /// Remove the authenticator.
+    /// - Parameters:
+    ///   - identifier: The identifer of the authenticator associated with the OnPremise user account.
     ///
-    /// The `identifer` is stored within the `OnPremiseAuthenticator.token` and is set by IBM Verify Access mapping rules.
+    /// The `identifer` is stored within the ``OnPremiseAuthenticator.token`` and is set by IBM Verify Access mapping rules.
     ///
     /// See [AuthenticationPostTokenGeneration](https://www.ibm.com/docs/en/sva/10.0.1?topic=rules-mmfa-mapping-rule-methods)
     ///
@@ -244,6 +246,10 @@ extension OnPremiseAuthenticatorService {
             let transactionId: String
             let authnPolicyUri: String
 
+            var expiryTime: Date {
+                creationTime.addingTimeInterval(300)
+            }
+            
             /// The nested pending transactions decoding structure based off `OnPremisePendingCodingKeys`.  Used for on-premise transaction parsing.
             private enum CodingKeys: String, CodingKey {
                 case creationTime
@@ -287,7 +293,7 @@ extension OnPremiseAuthenticatorService {
     /// Creates a `PendingTransactionInfo` based on the parsed transaction and attribute data.
     /// - Parameters:
     ///   - result: The `TransactionResult` containing the parsed data.
-    ///   - transactionID: The identifier of the transaction.
+    ///   - transactionId: The identifier of the transaction.
     /// - Remark: The `TransactionResult.transactions` have been sorted by `creationDate`.
     private func createPendingTransaction(with result: TransactionResult, transactionId: String? = nil) async throws -> PendingTransactionInfo {
         // Optional variable to hold the transaction. By default, we'll store the first transaction encountered but reassign if we match the authenticatorId and/or transactionId.
@@ -317,7 +323,7 @@ extension OnPremiseAuthenticatorService {
         let resource = HTTPResource<VerificationInfo>(json: .post, url: transactionInfo.requestUrl, accept: .json, headers: headers)
         
         guard let verificationInfo = try? await self.urlSession.dataTask(for: resource) else {
-            throw MFAServiceError.invalidDataResponse   // An error here typically is due to missing serverChallenge attribute introduced in ISAM 9.0.6.
+            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from registration response.", bundle: .module))   // An error here typically is due to missing serverChallenge attribute introduced in ISAM 9.0.6.
         }
         
         // 5. Check if the transaction attributes contain signing information.
@@ -327,16 +333,16 @@ extension OnPremiseAuthenticatorService {
             dataToSign = value
         }
         
-        // 5. Re-create the FactorId from the keyHandle. Refer to the enroll method where [keyHandles] is a UUID.FactorType
-        guard let keyHandle = verificationInfo.keyHandles.first, let id = keyHandle.components(separatedBy: ".").first, let factorId = UUID(uuidString: id) else {
-            throw MFAServiceError.general(message: "Unknown key handle to identify factor.")
+        // 5. Re-create the keyName from the keyHandle. Refer to the enroll method where [keyHandles] is a UUID.FactorType
+        guard let keyName = verificationInfo.keyHandles.first else {
+            throw MFAServiceError.invalidFactor
         }
         
         // 6. Match the message and extras in attributesPending associated to the transactionId.
         let attributeInfo = result.attributes.filter({ $0.transactionId == transactionInfo.transactionId && ($0.uri == "mmfa:request:context:message" || $0.uri == "mmfa:request:extras") })
         
         // 7. Use the localized message as default if the context message doesn't exist.
-        var verificationMessage = NSLocalizedString("PendingRequestMessageDefault", bundle: Bundle.module, comment: "")
+        var verificationMessage = NSLocalizedString("You have a pending request", bundle: Bundle.module, comment: "")
         if let messageAttribute = attributeInfo.first(where: { $0.uri == "mmfa:request:context:message" }), let message = messageAttribute.values.first {
             verificationMessage = message
         }
@@ -348,14 +354,17 @@ extension OnPremiseAuthenticatorService {
         let additionalData = createAdditionalData(with: attributeInfo)
 
         // 10. Construct the pending transaction taking data from the transaction, attribute and authentication info.
-        let result = PendingTransactionInfo(id: transactionInfo.transactionId,
-                                            message: verificationMessage,
-                                            postbackUri: postbackUri,
-                                            factorID: factorId,
-                                            factorType: verificationInfo.type,
-                                            dataToSign: dataToSign,
-                                            timeStamp: transactionInfo.creationTime,
-                                            additionalData: additionalData)
+        let result = PendingTransactionInfo(
+            id: transactionInfo.transactionId,
+            message: verificationMessage,
+            postbackUri: postbackUri,
+            keyName: keyName,
+            factorId: transactionInfo.authnPolicyUri,
+            factorType: verificationInfo.type,
+            dataToSign: dataToSign,
+            timeStamp: transactionInfo.creationTime,
+            expiryTime: transactionInfo.expiryTime,
+            additionalData: additionalData)
 
         return result
     }
@@ -420,6 +429,31 @@ extension OnPremiseAuthenticatorService {
                         data.removeValue(forKey: "imageURL")
                     }
 
+                    // Add the correlation to the result, then remove from dictionary.
+                    if let value = data["correlationEnabled"] {
+                        var isEnabled = false
+                        
+                        if let boolValue = value as? Bool {
+                            isEnabled = boolValue
+                        }
+                        else if let stringValue = value as? String, let boolFromString = Bool(stringValue.lowercased()) {
+                            isEnabled = boolFromString
+                        }
+                        
+                        if isEnabled {
+                            if let correlationValue = data["correlationValue"] as? String {
+                                result.updateValue("\(correlationValue)", forKey: .correlation)
+                                data.removeValue(forKey: "correlationValue")
+                            }
+                            else {
+                                let correlationValue = computeCorrelationValue(from: item.transactionId)
+                                result.updateValue("\(correlationValue)", forKey: .correlation)
+                            }
+                        }
+                        
+                        data.removeValue(forKey: "correlationEnabled")
+                    }
+                    
                     // Assign the remaining values to TransactionAttribute.custom
                     if !data.isEmpty {
                         // Normalize the array of value for consistency with Cloud (CIV).  i.e [{"name":"name1", "value": "value1"}, ...]

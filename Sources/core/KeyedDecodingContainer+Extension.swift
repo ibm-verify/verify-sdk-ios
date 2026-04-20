@@ -17,7 +17,7 @@ extension KeyedDecodingContainer {
     /// Decodes a value of the given type for the given key.
     /// - Parameters:
     ///   - type: The type of value to decode.
-    ///   - keys: The array of keys that the decoded value is associated with.
+    ///   - forKeys: The array of keys that the decoded value is associated with.
     /// - Returns: A value of the requested type, if present for the given key and convertible to the requested type.
     public func decode<T>(_ type: T.Type, forKeys keys: [K]) throws -> T where T: Decodable {
         for key in keys {
@@ -37,7 +37,7 @@ extension KeyedDecodingContainer {
     ///
     /// - Parameters:
     ///   - type: The type of value to decode.
-    ///   - keys: The array of keys that the decoded value is associated with.
+    ///   - forKeys: The array of keys that the decoded value is associated with.
     /// - Returns: A decoded value of the requested type, or `nil` if the
     ///   `Decoder` does not have an entry associated with the given key, or if
     ///   the value is a null value.

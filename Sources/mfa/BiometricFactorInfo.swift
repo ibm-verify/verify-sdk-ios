@@ -5,15 +5,15 @@
 import Foundation
 
 /// A signature factor refers to the use of a digital signature as a second factor to authenticate an external entity.
-public struct UserPresenceFactorInfo: Factor, Sendable {
+public struct BiometricFactorInfo: Factor, Sendable {
     public let id: String
     
     public var displayName: String {
-        String(localized: "User presence", bundle: .module)
+        MFAAttributeInfo.biometryName
     }
     
     public var imageName: String {
-        "hand.tap"
+        MFAAttributeInfo.biometryImage
     }
     
     /// The name to identify the Keychain item associated with the factor.

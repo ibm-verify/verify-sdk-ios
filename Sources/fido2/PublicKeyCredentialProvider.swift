@@ -19,7 +19,7 @@ public enum PublicKeyCredentialError: Error, LocalizedError, Equatable {
     /// The certifcate could not be parsed.
     case invalidCertificate
     
-    /// A private key could not be created from the the private key data.
+    /// A private key could not be created from the private key data.
     case unableToCreateKey
     
     /// Unable to create a signature based on the private key and attestation data.
@@ -40,7 +40,7 @@ public enum PublicKeyCredentialError: Error, LocalizedError, Equatable {
        case .invalidCertificate:
            return NSLocalizedString("The certifcate could not be parsed.", comment: "Invalid certificate")
        case .unableToCreateKey:
-            return NSLocalizedString("A private key could not be created from the the private key data.", comment: "Create key error.")
+            return NSLocalizedString("A private key could not be created from the private key data.", comment: "Create key error.")
        case .unableToCreateSignature:
             return NSLocalizedString("Unable to create a signature based on the private key and attestation data.", comment: "Create signature error.")
        case .timeout:
@@ -53,8 +53,15 @@ public enum PublicKeyCredentialError: Error, LocalizedError, Equatable {
 
 /// Platform authentication for providing public key credential requests to an app using the [W3C Web Authentication](https://www.w3.org/TR/webauthn-2/) specification.
 public class PublicKeyCredentialProvider {
-    /// Create the object.
-    public init() {
+    private let applicationTag: String
+    private let accessGroup: String?
+
+    /// - Parameters:
+    ///   - applicationTag: A unique string identifying this category of keys. Defaults to a passkey-specific ID.
+    ///   - accessGroup: The shared Keychain Group (e.g., "TEAMID.group.com.example.app"). If `nil`, keys are stored in the app's private sandbox.
+    public init(applicationTag: String? = nil, accessGroup: String? = nil) {
+        self.applicationTag = applicationTag ?? "fido2.platform.internal"
+        self.accessGroup = accessGroup
     }
     
     /// A delegate that the public key provider informs about the success or failure of an attestation or assertion attempt.
@@ -141,18 +148,16 @@ public class PublicKeyCredentialProvider {
         }
 
         // Create a new key.
-        let store = SecKeyStore()
-        guard let privateKey = try? SecKeyStore().generate(context: context) else {
-            delegate?.publicKeyCredential(provider: self, didCompleteWithError: PublicKeyCredentialError.unableToCreateKey)
-            return
-        }
-
+        let store = SecKeyStore(serviceName: applicationTag, accessGroup: accessGroup)
         do {
-            let key = Data(SHA256.hash(data: privateKey.publicKey.derRepresentation))
-            try store.add(key.base64URLEncodedString(), key: privateKey)
-        
+            let privateKey = try store.generate(context: context)
+            
             // Create the attestation payload.
             let result = try processPublicKeyAttestationResponse(aaguid, statementProvider: statementProvider, privateKey: privateKey, context: context, options: options)
+
+            // Store in the Keychain
+            try store.add(result.id, key: privateKey)
+            
             delegate?.publicKeyCredential(provider: self, didCompleteWithAttestation: result)
         }
         catch let error {
@@ -160,106 +165,122 @@ public class PublicKeyCredentialProvider {
         }
     }
     
-    /// Creates an assertion request with request options and additional client data parameters.
+    /// Signs the system-provided `clientDataHash` with Authenticator Data to complete a Passkey assertion in a Credential Provider Extension.
     /// - Parameters:
-    ///   - options: An instance of ``PublicKeyCredentialRequestOptions``.
-    ///   - clientDataParams: Additional key/values pairs to enrich `clientJSONData` assertion.
-    ///
-    /// When the request succeeds, the information is relayed to the view controllers `delegate` by calling the `publicKeyCredential(provider:didCompleteWithAssertion:)` method with the result.  If the request fails then `publicKeyCredential(provider:didCompleteWithError:)` is called instead.
-    /// ```swift
-    /// // Construct a new request options object. The challenge typically comes from your server.
-    /// let options = PublicKeyCredentialRequestOptions(
-    ///     challenge: UUID().uuidString,
-    ///     rp: "mydomain.com",
-    ///     allowCredentials: [],
-    ///     userVerification: .required,
-    ///     timeout: 10000)
-    ///
-    /// // Attempt to generate the public key credential with a private key assertion.
-    /// let provider = PublicKeyCredentialProvider()
-    ///
-    ///// Ensure you implement PublicKeyCredentialDelegate to get the callbacks.
-    /// provider.delegate = self
-    /// provider.createCredentialAssertionRequest(options: options)
-    /// ```
-    public func createCredentialAssertionRequest(options: PublicKeyCredentialRequestOptions, clientDataParams: [String:Any]? = [:]) {
-        // Check if we have any extensions and if so, check if the biometry is Touch ID and if so, create an LAContext using extension message as the localized reason.
-        var context: LAContext? = nil
-        if let extensions = options.extensions, biometryType == .touchID {
-            context = LAContext()
-            context!.localizedReason = extensions.txAuthSimple
+    ///   - credentialId: The unique identifier for the passkey (Base64URL encoded). Used as the lookup alias to retrieve the private key from the local Keychain/Secure Enclave.
+    ///   - clientDataHash: The SHA-256 hash provided by ASPasskeyCredentialRequestParameters. This represents the system's serialized version of the challenge, origin, and type.
+    ///   - relyingPartyId: The domain of the service requesting authentication (e.g., idp.example.com). This is hashed to create the rpIdHash in the authenticator data.
+    ///   - userHandle: The optional user ID (Subject) associated with the passkey. This is returned to the server to identify which user account is being accessed.
+    ///   - context: The biometric authentication context. It proves to the Secure Enclave that the user has successfully performed Face ID or Touch ID, authorizing the use of the private key.
+    public func createCredentialAssertionRequest(credentialId: String, clientDataHash: Data, relyingPartyId: String, userHandle: [UInt8], context: LAContext) {
+        let store = SecKeyStore(serviceName: applicationTag, accessGroup: accessGroup)
+
+        // 1. Retrieve Private Key from Secure Enclave
+        // The LAContext is passed to satisfy the Access Control requirements (Biometrics).
+        guard let privateKey = store.read(credentialId, context: context) else {
+            delegate?.publicKeyCredential(provider: self, didCompleteWithError: PublicKeyCredentialError.invalidPrivateKeyData)
+            return
+        }
+
+        do {
+            let result = try self.processPublicKeyAssertionResponse(rpId: relyingPartyId, privateKey: privateKey, clientDataHash: clientDataHash, userHandle: userHandle, credentialId: credentialId)
             
+            self.delegate?.publicKeyCredential(provider: self, didCompleteWithAssertion: result)
+
+        }
+        catch {
+            delegate?.publicKeyCredential(provider: self, didCompleteWithError: error)
+        }
+    }
+    
+    public func createCredentialAssertionRequest(options: PublicKeyCredentialRequestOptions, clientDataParams: [String: Any]? = [:], systemClientDataHash: Data? = nil) {
+        // 1. Setup LAContext for Touch ID/Keychain access
+        let context = LAContext()
+        if let extensions = options.extensions, biometryType == .touchID {
+            context.localizedReason = extensions.txAuthSimple
             os_log("Extension verification with Touch ID.", log: .crypto, type: .info)
         }
         
-        // Create the private key from the stored data representation.
-        var privateKey: SecureEnclave.P256.Signing.PrivateKey?
-        let store = SecKeyStore()
-        
-        if let allowCredentials = options.allowCredentials {
-            for credential in allowCredentials {
-                privateKey = store.read(credential.id, context: context)
-                if privateKey != nil {
-                    break
+        let store = SecKeyStore(serviceName: applicationTag, accessGroup: accessGroup)
+
+        // 2. Find matching private key
+        let successfulMatch = options.allowCredentials?
+            .lazy
+            .compactMap { credential -> (id: String, key: SecureEnclave.P256.Signing.PrivateKey)? in
+                if let key = store.read(credential.id, context: context) {
+                    return (credential.id, key)
                 }
+                return nil
             }
-        }
-        
-        // No private key found, bail out.
-        if privateKey == nil {
+            .first
+
+        guard let match = successfulMatch else {
+            os_log("No matching private key found.")
             delegate?.publicKeyCredential(provider: self, didCompleteWithError: PublicKeyCredentialError.invalidPrivateKeyData)
+            return
         }
-        
+
+        let privateKey = match.key
+
+        // 3. UI and Logic Dispatch
         DispatchQueue.main.async {
+            // Handle Face ID Transaction Confirmation UI
             if let extensions = options.extensions, self.biometryType == .faceID {
-                if let viewController = self.viewController {
-                    os_log("Extension verification with Face ID.", log: .webauthn, type: .info)
-                    
-                    // Prompt for extension signing.
-                    let alert = self.createUserVerificationAlert(extensions.txAuthSimple)
-                    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { action in
-                        self.timer?.invalidate()
-                        self.timer = nil
-                        self.delegate?.publicKeyCredential(provider: self, didCompleteWithError: PublicKeyCredentialError.general(message: "User verification cancelled."))
-                        alert.dismiss(animated: true)
-                    }))
-                    
-                    alert.addAction(UIAlertAction(title: "Continue with Face ID", style: .default, handler: { action in
-                        self.timer?.invalidate()
-                        self.timer = nil
-                        
-                        do {
-                            let result = try self.processPublicKeyAssertionResponse(options: options, privateKey: privateKey!, params: clientDataParams)
-                            self.delegate?.publicKeyCredential(provider: self, didCompleteWithAssertion: result)
-                            alert.dismiss(animated: true)
-                        }
-                        catch let error {
-                            self.delegate?.publicKeyCredential(provider: self, didCompleteWithError: error)
-                            alert.dismiss(animated: true)
-                        }
-                    }))
-                    
-                    viewController.present(alert, animated: true)
-                    
-                    self.timer = Timer.scheduledTimer(withTimeInterval: Double(options.timeout / 1000), repeats: false) { timer in
-                        // The timer fired before the button was pressed
-                        self.timer = nil
-                        self.delegate?.publicKeyCredential(provider: self, didCompleteWithError: PublicKeyCredentialError.timeout)
-                    
-                        alert.dismiss(animated: true)
-                    }
-                }
-                else {
+                guard let viewController = self.viewController else {
                     self.delegate?.publicKeyCredential(provider: self, didCompleteWithError: PublicKeyCredentialError.general(message: "No view controller to display user verification."))
+                    return
+                }
+
+                os_log("Extension verification with Face ID.", log: .webauthn, type: .info)
+                
+                let alert = self.createUserVerificationAlert(extensions.txAuthSimple)
+                
+                // Cancel Action
+                alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+                    self.timer?.invalidate()
+                    self.timer = nil
+                    self.delegate?.publicKeyCredential(provider: self, didCompleteWithError: PublicKeyCredentialError.general(message: "User verification cancelled."))
+                })
+                
+                // Success Action
+                alert.addAction(UIAlertAction(title: "Continue with Face ID", style: .default) { _ in
+                    self.timer?.invalidate()
+                    self.timer = nil
+                    
+                    do {
+                        // Pass the systemClientDataHash here!
+                        let result = try self.processPublicKeyAssertionResponse(
+                            options: options,
+                            privateKey: privateKey,
+                            params: clientDataParams
+                        )
+                        self.delegate?.publicKeyCredential(provider: self, didCompleteWithAssertion: result)
+                    }
+                    catch {
+                        self.delegate?.publicKeyCredential(provider: self, didCompleteWithError: error)
+                    }
+                })
+                
+                viewController.present(alert, animated: true)
+                
+                // Timeout Timer
+                self.timer = Timer.scheduledTimer(withTimeInterval: Double(options.timeout / 1000), repeats: false) { _ in
+                    self.timer = nil
+                    self.delegate?.publicKeyCredential(provider: self, didCompleteWithError: PublicKeyCredentialError.timeout)
+                    alert.dismiss(animated: true)
                 }
             }
             else {
-                // Create the attestation payload.
+                // Standard Flow (No Face ID Alert required)
                 do {
-                    let result = try self.processPublicKeyAssertionResponse(options: options, privateKey: privateKey!, params: clientDataParams)
+                    let result = try self.processPublicKeyAssertionResponse(
+                        options: options,
+                        privateKey: privateKey,
+                        params: clientDataParams
+                    )
                     self.delegate?.publicKeyCredential(provider: self, didCompleteWithAssertion: result)
                 }
-                catch let error {
+                catch {
                     self.delegate?.publicKeyCredential(provider: self, didCompleteWithError: error)
                 }
             }
@@ -290,7 +311,13 @@ public class PublicKeyCredentialProvider {
         
         return window?.rootViewController
     }
-        
+    
+    /// Deletes the private key generated during the ``createCredentialAttestationRequest`` ceremony.
+    /// - Parameter credentialID: The credential ID of the public key credential.
+    public func deleteCredential(credentialID: String) throws {
+        let store = SecKeyStore(serviceName: applicationTag, accessGroup: accessGroup)
+        try store.delete(credentialID)
+    }
     
     // MARK: Private methods
     
@@ -307,7 +334,7 @@ public class PublicKeyCredentialProvider {
                                 "type": "webauthn.create"]
         
         // 2. Serialize the dictionary to a Data object.
-        let clientData = try! JSONSerialization.data(withJSONObject: clientDataParams, options: [])
+        let clientData = try! JSONSerialization.data(withJSONObject: clientDataParams, options: [.sortedKeys, .withoutEscapingSlashes])
         
         // 3. Convert the Data object to JSON.
         let clientDataJSON = String(decoding: clientData, as: UTF8.self)
@@ -392,6 +419,65 @@ public class PublicKeyCredentialProvider {
         return PublicKeyCredential<AuthenticatorAttestationResponse>(rawId: id.base64URLEncodedString(), id: id.base64URLEncodedString(), response: response, getTransports: ["internal"])
     }
     
+    private func processPublicKeyAssertionResponse(rpId: String, privateKey: SecureEnclave.P256.Signing.PrivateKey, clientDataHash: Data, userHandle: [UInt8], credentialId: String) throws -> PublicKeyCredential<AuthenticatorAssertionResponse> {
+        // MARK: Build the id and rawId
+        // 1. Create id as Data. The id whose value is also the rawId and credentialId.
+        let id = Data(SHA256.hash(data: privateKey.publicKey.derRepresentation))
+        
+        // MARK: Build authenticatorData
+        // https://w3c.github.io/webauthn/#sctn-op-get-assertion
+        // 1. Create an empty byte array
+        var authenticatorDataParams: [UInt8] = []
+        
+        // 2. Add hash of rp.id
+        authenticatorDataParams.append(contentsOf: SHA256.hash(data: rpId.data(using: .utf8)!))
+        
+        // 2. Add the flags (1 byte): 0x01 (userPresence UP) | 0x04 (userVerification UV)
+        let flags: UInt8 = {
+            var f: UInt8 = 0
+            f |= 0x01 // UP: User Present (bit 0)
+            f |= 0x04 // UV: User Verified (bit 2)
+            f |= 0x08 // BE: Backup Eligible (bit 3)
+            f |= 0x10 // BS: Backup State (bit 4)
+            return f
+        }()
+        
+        authenticatorDataParams.append(flags)
+        
+        // 4. Add the counter being 4 bytes
+        let now = Int(Date().timeIntervalSince1970)
+        let counter: [UInt8] = [UInt8((now & 0xff000000) >> 24), UInt8((now & 0x00ff0000) >> 16), UInt8((now & 0x0000ff00) >>  8), UInt8(now & 0x000000ff)]
+        authenticatorDataParams.append(contentsOf: counter)
+        
+        // MARK: Build authenticator param and client data hash - signature base string
+        // 1. Create the signature
+        var signatureBase = Data(authenticatorDataParams)
+        
+        // 2. Add a hash of clientJSONData.
+        signatureBase.append(contentsOf: clientDataHash)
+        
+        // 3. Sign and return in DER format (which WebAuthn servers expect)
+        do {
+            let signature = try privateKey.signature(for: signatureBase).derRepresentation
+            
+            // 4. Construct the Ghost JSON
+            let clientDataJSON = "{\"challenge\":\"extension_context\",\"crossOrigin\":false,\"origin\":\"https://\(rpId)\",\"type\":\"webauthn.get\"}"
+            
+            // 5. Build the response
+            let response = AuthenticatorAssertionResponse(
+                clientDataJSON: clientDataJSON,
+                authenticatorData: authenticatorDataParams,
+                signature: Array(signature),
+                userHandle: userHandle)
+        
+            return PublicKeyCredential<AuthenticatorAssertionResponse>(rawId: id.base64URLEncodedString(), id: id.base64URLEncodedString(), response: response)
+        }
+        catch let error {
+            os_log("Signing error %{public}@", log: .webauthn, type: .debug, error.localizedDescription)
+            throw error
+        }
+    }
+    
     private func processPublicKeyAssertionResponse(options: PublicKeyCredentialRequestOptions, privateKey: SecureEnclave.P256.Signing.PrivateKey, params: [String: Any]? = [:]) throws -> PublicKeyCredential<AuthenticatorAssertionResponse> {
         // MARK: Build the id and rawId
         // 1. Create id as Data. The id which value is also the rawId and credentialId.
@@ -409,14 +495,13 @@ public class PublicKeyCredentialProvider {
         }
         
         // 2. Serialize the dictionary to a Data object.
-        let clientData = try! JSONSerialization.data(withJSONObject: clientDataParams, options: [])
+        let clientData = try! JSONSerialization.data(withJSONObject: clientDataParams, options: [.sortedKeys, .withoutEscapingSlashes])
         
         // 3. Convert the Data object to JSON.
         let clientDataJSON = String(decoding: clientData, as: UTF8.self)
         
         // 4. Hash the JSON with SHA256.
         let clientDataHash = SHA256.hash(data: clientData)
-        
         
         // MARK: Build authenticatorData
         // https://w3c.github.io/webauthn/#sctn-op-get-assertion
@@ -551,5 +636,12 @@ public extension PublicKeyCredentialDelegate {
     ///   - provider: The provider that performs the assertion attempt.
     ///   - result: The authenticator assertion response.
     func publicKeyCredential(provider: PublicKeyCredentialProvider, didCompleteWithAssertion result: PublicKeyCredential<AuthenticatorAssertionResponse>) {
+    }
+}
+
+public extension Data {
+    /// Converts Data to a Hex string for easy reading in the console
+    var hexString: String {
+        return map { String(format: "%02hhx", $0) }.joined()
     }
 }

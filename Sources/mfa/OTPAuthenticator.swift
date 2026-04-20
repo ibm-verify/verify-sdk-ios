@@ -5,164 +5,203 @@
 import Foundation
 import CryptoKit
 
-/// The authenticator for managing one-time passcodes.
-public class OTPAuthenticator: AuthenticatorDescriptor {
+/// The authenticator for managing one-time passcodes (OTP), supporting both TOTP and HOTP formats.
+public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
+    // MARK: - Properties
+
+    /// Unique identifier for the authenticator instance.
     public let id: String
-    public let serviceName: String
+
+    /// Name of the service (e.g., "Google", "GitHub").
+    public var serviceName: String
+
+    /// Name of the account associated with the service (e.g., "user@example.com").
     public var accountName: String
     
-    /// A list of allowed factors the user can attempt to perform 2nd factor (2FA) and multi-factor authentication (MFA).
-    /// 
-    /// - remark: The allowed factors are restricted to ``HOTPFactorInfo`` or ``TOTPFactorInfo``
-    public let allowedFactors: [FactorType]
-    
-    /// The root level JSON structure for decoding.
+    public let createdDate: Date?
+
+    /// Time-based OTP factor, if applicable.
+    public let totp: TOTPFactorInfo?
+
+    /// Counter-based OTP factor, if applicable.
+    public var hotp: HOTPFactorInfo?
+
+    // MARK: - Codable Support
+
+    /// Keys used for encoding and decoding JSON.
     private enum CodingKeys: String, CodingKey {
         case id
         case serviceName
         case accountName
-        case allowedFactors
+        case createdDate
+        case totp
+        case hotp
     }
-    
-    /// Initializes the authenticator to use a hash-based message authentication.
+
+    /// Enum to distinguish between OTP types.
+    private enum OTPType: String {
+        case totp
+        case hotp
+    }
+
+    // MARK: - Initializers
+
+    /// Initializes the authenticator with a specific OTP factor.
     /// - Parameters:
     ///   - serviceName: The name of the service providing the one-time passcode.
     ///   - accountName: The name of the account associated with the service.
+    ///   - createdDate: The date the authenticator was created.
     ///   - factor: An instance of ``HOTPFactorInfo`` or ``TOTPFactorInfo``
-    public init(with serviceName: String, accountName: String, factor: some Factor) {
+    public init(with serviceName: String, accountName: String, createdDate: Date? = nil, factor: some Factor) {
         precondition(factor is HOTPFactorInfo || factor is TOTPFactorInfo, "Only TOTP and HOTP factors are allowed.")
         
         self.id = UUID().uuidString
         self.serviceName = serviceName
         self.accountName = accountName
-        
-        if let value = factor as? HOTPFactorInfo {
-            self.allowedFactors = [
-                .hotp(value)
-            ]
-        }
-        else if let value = factor as? TOTPFactorInfo {
-            self.allowedFactors = [
-                .totp(value)
-            ]
-        }
-        else {
-            self.allowedFactors = []
-        }
-    }
-    
-    /// Initializes the authenticator to use a one-time passcode determined by the result of a QR code scan.
-    /// - Parameters:
-    ///   - value: The string value resulting from the QR code scan.
-    ///
-    /// The URI format of a one-time passcode is represented as:
-    /// `otpauth://totp/Example:alice@host.com?secret=JBSWY3DPEHPK3PXP&issuer=Example`
-    ///
-    /// Additional parameters `period`, `digits` and `algorithm` can also be included in the URI string.
-    public init?(fromQRScan value: String) {
-        var dictionary: [String: String] = [:]
-        let pattern = "otpauth://([ht]otp)/([^\\?]+)\\?(.*)"
-        let regex = try! NSRegularExpression(pattern: pattern, options: [])
+        self.createdDate = createdDate
 
-        guard let match = regex.firstMatch(in: value, options: [], range: NSMakeRange(0, value.count)) else {
-            return nil
-        }
-
-        // Step 1: - Match the OTP type
-        guard let type = EnrollableType(rawValue: (value as NSString).substring(with: match.range(at: 1))) else {
-            return nil
-        }
-       
-        //  Step 2: - Match the issuer or the issuer:username
-        guard let label = (value as NSString).substring(with: match.range(at: 2)).removingPercentEncoding else {
-           return nil
-        }
-
-        let fields = label.split(separator: ":").map(String.init)
-        self.serviceName = fields[0]
-        
-        if fields.count > 1 {
-            self.accountName = fields.dropFirst().joined(separator: ":").trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        else {
-            self.accountName = fields[0]
-        }
-
-        // Step 3: - Parse the additional query params
-        let parameters = (value as NSString).substring(with: match.range(at: 3)).split(separator: "&")
-
-        for parameter in parameters {
-            let pair = parameter.split(separator: "=").map(String.init)
-            if pair.count == 2 {
-                dictionary[pair[0]] = pair[1].removingPercentEncoding
-            }
-        }
-        
-        // Step 4: - Assign the mandatory secret, algorithm and digits values
-        guard let secret = dictionary["secret"] else {
-            return nil
-        }
-        
-        guard let algorithm = HashAlgorithmType(rawValue: dictionary["algorithm"] ?? "sha1") else {
-            return nil
-        }
-
-        guard let digits = Int(dictionary["digits"] ?? "6"), (digits == 6 || digits == 8) else {
-            return nil
-        }
-        
-        // Step 5: - Assign the optional period or counter values based on the type
-        var value: Int?
-        if type == .hotp, let counter = Int(dictionary["counter"] ?? "1") {
-            value = counter
-        }
-
-        // For TOTP the supported period intervals are between 10 and 300.
-        if type == .totp, let period = Int(dictionary["period"] ?? "30"), period >= 10, period <= 300 {
-            value = period
-        }
-        
-        // Ensure a period or counter value has been assigned
-        guard let value = value else {
-            return nil
-        }
-        
-        // Step 6: - Create the OTP factor and add to allowedMethods array.
-        switch type {
-        case .totp:
-            self.allowedFactors = [
-                .totp(TOTPFactorInfo(with: secret, digits: digits, algorithm: algorithm, period: value))
-            ]
-        case .hotp:
-            self.allowedFactors = [
-                .hotp(HOTPFactorInfo(with: secret, digits: digits, algorithm: algorithm, counter: value))
-            ]
+        // Assign the correct factor type and nil the other.
+        switch factor {
+        case let hotp as HOTPFactorInfo:
+            self.hotp = hotp
+            self.totp = nil
+        case let totp as TOTPFactorInfo:
+            self.totp = totp
+            self.hotp = nil
         default:
-            return nil
+            fatalError()
         }
-        
-        // Step 6: - Assign an identifier
-        self.id = UUID().uuidString
-    }
-    
-    /// Creates a new instance by decoding from the given decoder
-    /// - Parameters:
-    ///   - decoder: The decoder to read data from.
-    public required init(from decoder: Decoder) throws {
-        let rootContainer = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try rootContainer.decode(String.self, forKey: .id)
-        self.serviceName = try rootContainer.decode(String.self, forKey: .serviceName)
-        self.accountName = try rootContainer.decode(String.self, forKey: .accountName)
-        self.allowedFactors = try rootContainer.decode([FactorType].self, forKey: .allowedFactors)
     }
 
-    /// Encodes this value into the given encoder.
-    /// - parameter encoder: The encoder to write data to.
+    /// Convenience initializer that parses an OTP URI from a standard `otpauth://` QR scan string.
+    /// - Parameter value: The URI string scanned from a QR code.
+    /// - Returns: A configured `OTPAuthenticator` instance or `nil` if parsing fails.
+    public init?(fromQRScan value: String) {
+        // MARK: - Parsing Pipeline
+        let parse: (String) -> (
+            type: OTPType,
+            issuer: String,
+            account: String,
+            secret: String,
+            algorithm: SigningAlgorithm,
+            digits: Int,
+            period: Int,
+            counter: Int
+        )? = { input in
+
+            // 1. URL + Type Validation
+            guard
+                let components = URLComponents(string: input),
+                components.scheme?.lowercased() == "otpauth",
+                let type = components.host.flatMap({ OTPType(rawValue: $0.lowercased()) })
+            else {
+                return nil
+            }
+
+            // 2. Query params (Normalized to lowercase keys)
+            let params = components.queryItems?.reduce(into: [String: String]()) {
+                $0[$1.name.lowercased()] = $1.value
+            } ?? [:]
+
+            // 3. Required: Secret (Base32 encoded)
+            guard let secret = params["secret"], !secret.isEmpty else {
+                return nil
+            }
+
+            // 4. Decode Label (Path)
+            // We strip the leading slash and decode percent-encoding.
+            let decodedLabel: String = {
+                let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                return path.removingPercentEncoding ?? ""
+            }()
+
+            // 5. Split Label into Issuer and Account
+            // Following spec: /Issuer:Account. If no colon, issuer is nil.
+            let (labelIssuer, labelAccount): (String?, String) = {
+                let parts = decodedLabel
+                    .split(separator: ":", maxSplits: 1)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+
+                return parts.count == 2
+                    ? (parts[0], parts[1])
+                    : (nil, decodedLabel)
+            }()
+
+            // 6. Resolve Final Identities
+            // Priority: Query param "issuer" > Label prefix > "Unknown"
+            let issuer = (params["issuer"] ?? labelIssuer ?? "Unknown")
+                .trimmingCharacters(in: .whitespaces)
+
+            // Account is now strictly whatever was after the colon (or the whole label if no colon)
+            let account = labelAccount.trimmingCharacters(in: .whitespaces)
+
+            // 7. Extract Parameters with Defaults
+            let algorithm = SigningAlgorithm(from: params["algorithm"] ?? "sha1") ?? .sha1
+            let digits = params["digits"].flatMap(Int.init) ?? 6
+            let period = params["period"].flatMap(Int.init) ?? 30
+            let counter = params["counter"].flatMap(Int.init) ?? 0
+
+            // Enforce valid digit lengths
+            guard digits == 6 || digits == 8 else {
+                return nil
+            }
+            
+            return (type, issuer, account, secret, algorithm, digits, period, counter)
+        }
+
+        // MARK: - Execution & Construction
+        guard let parsed = parse(value) else { return nil }
+
+        switch parsed.type {
+        case .totp:
+            guard (10...300).contains(parsed.period) else { return nil }
+            self.init(
+                with: parsed.issuer,
+                accountName: parsed.account,
+                createdDate: Date(),
+                factor: TOTPFactorInfo(
+                    with: parsed.secret,
+                    digits: parsed.digits,
+                    algorithm: parsed.algorithm,
+                    period: parsed.period
+                )
+            )
+        case .hotp:
+            self.init(
+                with: parsed.issuer,
+                accountName: parsed.account,
+                createdDate: Date(),
+                factor: HOTPFactorInfo(
+                    with: parsed.secret,
+                    digits: parsed.digits,
+                    algorithm: parsed.algorithm,
+                    counter: parsed.counter
+                )
+            )
+        }
+    }
+
+    /// Decodes an instance from a decoder (e.g., from JSON).
+    /// - Parameter decoder: The decoder to read data from.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.serviceName = try container.decode(String.self, forKey: .serviceName)
+        self.accountName = try container.decode(String.self, forKey: .accountName)
+        self.createdDate = try container.decodeIfPresent(Date.self, forKey: .createdDate)
+        self.totp = try container.decodeIfPresent(TOTPFactorInfo.self, forKey: .totp)
+        self.hotp = try container.decodeIfPresent(HOTPFactorInfo.self, forKey: .hotp)
+    }
+
+    /// Encodes the instance into an encoder (e.g., for JSON serialization).
+    /// - Parameter encoder: The encoder to write data to.
     public func encode(to encoder: Encoder) throws {
-        var rootContainer = encoder.container(keyedBy: CodingKeys.self)
-        try rootContainer.encode(self.id, forKey: .id)
-        try rootContainer.encode(self.serviceName, forKey: .serviceName)
-        try rootContainer.encode(self.accountName, forKey: .accountName)
-        try rootContainer.encode(self.allowedFactors, forKey: .allowedFactors)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(serviceName, forKey: .serviceName)
+        try container.encode(accountName, forKey: .accountName)
+        try container.encodeIfPresent(createdDate, forKey: .createdDate)
+        try container.encodeIfPresent(totp, forKey: .totp)
+        try container.encodeIfPresent(hotp, forKey: .hotp)
     }
 }

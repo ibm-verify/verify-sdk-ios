@@ -211,14 +211,14 @@ public protocol AdaptiveDelegate {
     /// Generate a factor against an endpoint that integrates against IBM Verify Policy Driven Authentication services.
     /// - Parameters:
     ///   - enrolmentId: The users enrolment identifier used to associate an evaluation.
-    ///   - transactionId: Transaction identifier used to associate an evaluation.
+    ///   - transactionid: Transaction identifier used to associate an evaluation.
     ///   - factor: A type of factor required to authenticate.
     ///   - completion: A value that represents either a success or a failure, including an associated `GenerateResult` or `Error` in each case.
     func generate(with enrolmentId: String, transactionId: String, factor: FactorType, completion: @escaping (Result<GenerateResult, Error>) -> Void)
     
     /// Evaluates a factor against an endpoint that integrates against Cloud Identity Policy Driven Authentication services.
     /// - Parameters:
-    ///   - response: The ``FactorEvaluation`` to expect on evaluation.
+    ///   - factor: An instance of a a type that implements the `FactorEvaluation` protocol.
     ///   - evaluationContext: The stage in the application for which to perform an evaluation.
     /// (Used for continuous assessment throughout the application.) Different "stages" or "contexts"
     /// will result in different evaluation results, as configured in the sub-policies of the tenant

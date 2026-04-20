@@ -5,17 +5,21 @@
 import Foundation
 import Authentication
 
-/// The `OnPremiseAuthenticator` enables authenticators to be able to perform transaction and token refresh operations.
-public struct OnPremiseAuthenticator: MFAAuthenticatorDescriptor {
+/// A class representing an on-premise multi-factor authenticator.
+///
+/// `OnPremiseAuthenticator` manages connection details for self-hosted or corporate authentication services, including support for custom SSL configurations and QR login.
+public struct OnPremiseAuthenticator: MFAAuthenticatorDescriptor, Sendable {
     public let refreshUri: URL
     public let transactionUri: URL
     public var theme: [String: String]
     public var token: TokenInfo
     public let id: String
-    public let serviceName: String
+    public var serviceName: String
     public var accountName: String
-    public let allowedFactors: [FactorType]
     public var publicKeyCertificate: String?
+    public private(set) var userPresence: UserPresenceFactorInfo?
+    public private(set) var biometric: BiometricFactorInfo?
+    public let createdDate: Date?
     
     /// The location of the endpoint to perform QR code based authentication.
     ///

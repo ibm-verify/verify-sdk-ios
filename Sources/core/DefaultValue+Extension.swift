@@ -24,7 +24,7 @@ extension Default {
             public static var defaultValue: Bool { true }
         }
 
-        /// A Boolean value that’s false..
+        /// A Boolean value that’s false.
         public enum False: DefaultValue {
             public static var defaultValue: Bool { false }
         }
