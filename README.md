@@ -32,7 +32,7 @@ The following components are currently offered in the package.
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.0")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.1")
 ]
 ```
 
