@@ -3,10 +3,10 @@
 //
 
 import XCTest
-import Core
+@testable import Core
 
 extension Default.Value {
-    ///A zero value.
+    /// A zero value.
     public enum Zero: DefaultValue {
         public static var defaultValue: Int { Int.zero }
     }
@@ -16,16 +16,10 @@ extension Default {
     public typealias ZeroInt = Wrapper<Value.Zero>
 }
 
-class DefaultValueTests: XCTestCase {
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-    }
+final class DefaultValueTests: XCTestCase {
     
-    // MARK: Structures
+    // MARK: - Structures
+    
     struct Person: Codable {
         let userId: Int
         let name: String
@@ -39,263 +33,130 @@ class DefaultValueTests: XCTestCase {
         let postId: Int
         let name: String
         @Default.ZeroInt var count: Int
+        @Default.EmptyList var tags: [String]
+        @Default.EmptyMap var metadata: [String: String]
+    }
+    
+    // MARK: - Enum Unit Tests
+    
+    /// Tests the raw defaultValue properties of the enums.
+    func testDefaultValueEnums() {
+        XCTAssertEqual(Default.Value.True.defaultValue, true)
+        XCTAssertEqual(Default.Value.False.defaultValue, false)
+        XCTAssertEqual(Default.Value.EmptyString.defaultValue, "")
+        XCTAssertEqual(Default.Value.Zero.defaultValue, 0)
+        
+        let emptyList: [String] = Default.Value.EmptyList<[String]>.defaultValue
+        XCTAssertTrue(emptyList.isEmpty)
+        
+        let emptyMap: [String: Int] = Default.Value.EmptyMap<[String: Int]>.defaultValue
+        XCTAssertTrue(emptyMap.isEmpty)
     }
     
     // MARK: - Bool Tests
     
-    /// Adds  `True` as the `isEnabled` default value.
     func testDecodeDefaultTrue() throws {
-        // Given
-        let json = """
-        {
-            "userId": 1,
-            "name": "John",
-            "nickName": "jono"
-        }
-        """
-        
-        do {
-            // When
-            let result = try JSONDecoder().decode(Person.self, from: json.data(using: .utf8)!)
-            
-            // Then
-            XCTAssertTrue(result.isAdmin)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
+        let json = "{\"userId\": 1, \"name\": \"John\"}"
+        let result = try JSONDecoder().decode(Person.self, from: json.data(using: .utf8)!)
+        XCTAssertTrue(result.isAdmin)
+        XCTAssertTrue(result.isTrue)
     }
     
-    /// Adds  `False` as the `isEnabled` default value.
     func testDecodeDefaultFalse() throws {
-        // Given
-        let json = """
-        {
-            "userId": 1,
-            "name": "John",
-            "nickName": "jono"
-        }
-        """
-        
-        do {
-            // When
-            let result = try JSONDecoder().decode(Person.self, from: json.data(using: .utf8)!)
-            
-            // Then
-            XCTAssertFalse(result.isEnabled)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
+        let json = "{\"userId\": 1, \"name\": \"John\"}"
+        let result = try JSONDecoder().decode(Person.self, from: json.data(using: .utf8)!)
+        XCTAssertFalse(result.isEnabled)
     }
     
     // MARK: - String Tests
     
-    /// Adds  `""` as the `nickName` default value.
     func testDecodeDefaultString() throws {
-        // Given
-        let json = """
-        {
-            "userId": 1,
-            "name": "John",
-            "isAdmin": true,
-            "isEnabled": true
-        }
-        """
-        
-        do {
-            // When
-            let result = try JSONDecoder().decode(Person.self, from: json.data(using: .utf8)!)
-            
-            // Then
-            XCTAssertTrue(result.nickName.isEmpty)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
+        let json = "{\"userId\": 1, \"name\": \"John\"}"
+        let result = try JSONDecoder().decode(Person.self, from: json.data(using: .utf8)!)
+        XCTAssertEqual(result.nickName, "")
     }
     
-    // MARK: - All Values
-    /// Checks all values in the JSON defaults and provided.
-    func testDecodeAll() throws {
-        // Given
+    // MARK: - Collection Tests (List & Map)
+    
+    func testDecodeDefaultCollections() throws {
+        let json = "{\"postId\": 1, \"name\": \"Swift Post\"}"
+        let result = try JSONDecoder().decode(Post.self, from: json.data(using: .utf8)!)
+        
+        XCTAssertEqual(result.tags, [])
+        XCTAssertEqual(result.metadata, [:])
+    }
+    
+    func testDecodeProvidedCollections() throws {
+        let json = """
+        {
+            "postId": 1,
+            "name": "Swift Post",
+            "tags": ["ios"],
+            "metadata": {"lang": "en"}
+        }
+        """
+        let result = try JSONDecoder().decode(Post.self, from: json.data(using: .utf8)!)
+        
+        XCTAssertEqual(result.tags, ["ios"])
+        XCTAssertEqual(result.metadata, ["lang": "en"])
+    }
+    
+    // MARK: - Custom Default (ZeroInt)
+    
+    func testDecodeCustomDefaultInt() throws {
+        let json = "{\"postId\": 1, \"name\": \"John\"}"
+        let result = try JSONDecoder().decode(Post.self, from: json.data(using: .utf8)!)
+        XCTAssertEqual(result.count, 0)
+    }
+    
+    func testDecodeProvidedInt() throws {
+        let json = "{\"postId\": 1, \"name\": \"John\", \"count\": 42}"
+        let result = try JSONDecoder().decode(Post.self, from: json.data(using: .utf8)!)
+        XCTAssertEqual(result.count, 42)
+    }
+    
+    // MARK: - Encode Tests
+    
+    func testEncodeDefaultAll() throws {
+        let person = Person(userId: 1, name: "John")
+        let data = try JSONEncoder().encode(person)
+        
+        // Round-trip verification
+        let decoded = try JSONDecoder().decode(Person.self, from: data)
+        XCTAssertEqual(decoded.nickName, "")
+        XCTAssertTrue(decoded.isAdmin)
+        XCTAssertFalse(decoded.isEnabled)
+    }
+    
+    func testEncodeCustomDefaultInt() throws {
+        let post = Post(postId: 1, name: "John")
+        let data = try JSONEncoder().encode(post)
+        
+        let decoded = try JSONDecoder().decode(Post.self, from: data)
+        XCTAssertEqual(decoded.count, 0)
+        XCTAssertEqual(decoded.tags, [])
+    }
+    
+    // MARK: - All Values Integration
+    
+    func testDecodeAllProvided() throws {
         let json = """
         {
             "userId": 1,
             "name": "John",
             "nickName": "jono",
             "isAdmin": false,
-            "isEnabled": true
+            "isEnabled": true,
+            "isTrue": false
         }
         """
+        let result = try JSONDecoder().decode(Person.self, from: json.data(using: .utf8)!)
         
-        do {
-            // When
-            let result = try JSONDecoder().decode(Person.self, from: json.data(using: .utf8)!)
-            
-            // Then
-            XCTAssertEqual(result.userId, 1)
-            XCTAssertEqual(result.name, "John")
-            XCTAssertTrue(result.isEnabled)
-            XCTAssertEqual(result.nickName, "jono")
-            XCTAssertFalse(result.isAdmin)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
-    }
-        
-    /// Checks all values in the JSON defaults.
-    func testDecodeDefaultAll() throws {
-        // Given
-        let json = """
-        {
-            "userId": 1,
-            "name": "John"
-        }
-        """
-        
-        do {
-            // When
-            let result = try JSONDecoder().decode(Person.self, from: json.data(using: .utf8)!)
-            
-            // Then
-            XCTAssertEqual(result.userId, 1)
-            XCTAssertEqual(result.name, "John")
-            XCTAssertFalse(result.isEnabled)
-            XCTAssertEqual(result.nickName, "")
-            XCTAssertTrue(result.isAdmin)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
-    }
-    
-    // MARK: - Custom Default
-    /// Custom default `Int.Zero`
-    func testDecodeCustomDefaultInt() throws {
-        // Given
-        let json = """
-        {
-            "postId": 1,
-            "name": "John"
-        }
-        """
-        
-        do {
-            // When
-            let result = try JSONDecoder().decode(Post.self, from: json.data(using: .utf8)!)
-            
-            // Then
-            XCTAssertEqual(result.count, Int.zero)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
-    }
-    
-    /// Custom decode `Int`.
-    func testDecodeCustomDefaultAll() throws {
-        // Given
-        let json = """
-        {
-            "postId": 1,
-            "name": "John",
-            "count": 3
-        }
-        """
-        
-        do {
-            // When
-            let result = try JSONDecoder().decode(Post.self, from: json.data(using: .utf8)!)
-            
-            // Then
-            XCTAssertEqual(result.count, 3)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
-    }
-    
-    // MARK: - JSON Encode.
-    func testEncodeDefaultAll() throws {
-        // Given
-        let person = Person(userId: 1, name: "John")
-        
-        do {
-            // When
-            let result = try JSONEncoder().encode(person)
-            
-            // Then
-            XCTAssertNotNil(result)
-            
-            // Then - take the encoded JSON and deecode into a new Person object.
-            let newPerson = try JSONDecoder().decode(Person.self, from: result)
-            
-            // Then - Check the default values are encoded.
-            XCTAssertFalse(newPerson.isEnabled)
-            XCTAssertEqual(newPerson.nickName, "")
-            XCTAssertTrue(newPerson.isAdmin)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
-    }
-    
-    func testEncodeDefaultString() throws {
-        // Given
-        let person = Person(userId: 1, name: "John")
-        
-        do {
-            // When
-            let result = try JSONEncoder().encode(person)
-            
-            // Then
-            XCTAssertNotNil(result)
-            
-            // Then - take the encoded JSON and deecode into a new Person object.
-            let newPerson = try JSONDecoder().decode(Person.self, from: result)
-            
-            // Then - Check the default values are encoded.
-            XCTAssertFalse(newPerson.isEnabled)
-            XCTAssertEqual(newPerson.nickName, "")
-            XCTAssertTrue(newPerson.isAdmin)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
-    }
-    
-    
-    func testEncodeCustomDefaultInt() throws {
-        // Given
-        let post = Post(postId: 1, name: "John")
-        
-        do {
-            // When
-            let result = try JSONEncoder().encode(post)
-            
-            // Then
-            XCTAssertNotNil(result)
-            
-            // Then - take the encoded JSON and deecode into a new Post object.
-            let newPost = try JSONDecoder().decode(Post.self, from: result)
-            
-            // Then - Check the default values are encoded.
-            XCTAssertEqual(newPost.count, 0)
-        }
-        catch let error {
-            print("Error: \(error.localizedDescription)")
-            XCTFail()
-        }
+        XCTAssertEqual(result.userId, 1)
+        XCTAssertEqual(result.name, "John")
+        XCTAssertEqual(result.nickName, "jono")
+        XCTAssertFalse(result.isAdmin)
+        XCTAssertTrue(result.isEnabled)
+        XCTAssertFalse(result.isTrue)
     }
 }
