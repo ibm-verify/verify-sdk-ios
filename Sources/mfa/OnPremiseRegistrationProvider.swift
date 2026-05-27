@@ -298,7 +298,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
     public func finalize() async throws -> OnPremiseAuthenticator {
         // Ensure initializationInfo exists before proceeding.
-        guard let initializationInfo = self.initializationInfo else {
+        guard let initializationInfo = self.initializationInfo, let hostname = initializationInfo.registrationUri.host else {
             throw OnPremiseRegistrationError.invalidState
         }
         
@@ -312,7 +312,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
                                       theme: initializationInfo.metadata.theme ?? [:] ,
                                       token: token,
                                       id: self.authenticatorId,
-                                      serviceName: initializationInfo.metadata.serviceName,
+                                      serviceName: initializationInfo.metadata.serviceName ?? hostname,
                                       accountName: self.accountName,
                                       userPresence: self.userPresence,
                                       biometric: self.biometric,
@@ -443,7 +443,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     /// Represents metadata information embedded in the initialization payload.
     struct Metadata: Codable {
         /// Name of the service (e.g., "ISVA Service").
-        let serviceName: String
+        let serviceName: String?
         
         /// A custom color scheme that can be applied to app elements.  For example, buttons, background-color, text color.
         let theme: [String: String]?

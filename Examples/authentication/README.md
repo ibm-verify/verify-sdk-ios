@@ -10,7 +10,7 @@ The Authentication sample app is an end-to-end mobile app which uses an OAuth an
 
 - OAuth2 using authorization code flow (AZN)
 
-> See [Create an application using AZN](https://docs.verify.ibm.com/verify/docs/authorization-code-example)
+> See [Create an application using AZN](https://docs.verify.ibm.com/verify/docs/developer-portal-authorization-code-example)
 
 - Ensure that the redirect URL is `verifysdk://auth/callback`
 
