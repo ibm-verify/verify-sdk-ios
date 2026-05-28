@@ -194,6 +194,11 @@ public enum MFAServiceError: Error, LocalizedError {
     /// This is an initial state error, typically indicating a problem with the service's readiness.
     case unableToCreateTransaction
     
+    /// The service was unable to create a new pending transaction to begin a new MFA flow.
+    ///
+    /// No pending transaction was found for the authenticator.
+    case noTransactionForAuthenticator
+    
     /// A general error that occurred perform a MFA operation. The associated value provides the underlying error.
     case underlyingError(error: Error)
     
@@ -211,6 +216,8 @@ public enum MFAServiceError: Error, LocalizedError {
             return String(localized: "No pending transaction was available to complete.", bundle: .module)
         case .unableToCreateTransaction:
             return String(localized: "Unable to create the transaction for identifier.", bundle: .module)
+        case .noTransactionForAuthenticator:
+            return String(localized: "No transactions found for the authenticator.", bundle: .module)
         case .underlyingError(let error):
             return String(localized: "An error occured. \(error.localizedDescription)", bundle: .module)
         }

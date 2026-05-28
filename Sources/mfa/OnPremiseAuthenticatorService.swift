@@ -109,9 +109,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         }
         
         // Process the transactions, which involves making another request to get the verification challenge data.
-        guard let pendingTransaction = try? await createPendingTransaction(with: transactionResult, transactionId: transactionId) else {
-            throw MFAServiceError.unableToCreateTransaction
-        }
+        let pendingTransaction = try await createPendingTransaction(with: transactionResult, transactionId: transactionId)
         
         self.currentPendingTransaction = pendingTransaction
         
@@ -311,7 +309,7 @@ extension OnPremiseAuthenticatorService {
         
         // 3. Make sure a transaction is resolved.
         if !identifiers.isEmpty && transactionInfoResult == nil {
-            throw MFAServiceError.unableToCreateTransaction
+            throw MFAServiceError.noTransactionForAuthenticator
         }
         
         guard let transactionInfo = transactionInfoResult else {
