@@ -2,8 +2,6 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 # v3.1.2
 28 April 2026
 
-## Package support for iOS16
-
 ### IBM Verify MFA SDK for iOS
 * Fixes issue when `service_name` not provided in `OnPremiseRegistrationProvider` MFA registration.
 

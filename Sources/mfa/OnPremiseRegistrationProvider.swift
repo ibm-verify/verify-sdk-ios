@@ -307,6 +307,11 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             throw MFAServiceError.tokenNotFound
         }
         
+        // If accountName is empty, see if we can get it from the token, otherwise "Not available"
+        if self.accountName.isEmpty {
+            self.accountName = token.additionalData["display_name"] as? String ?? "Not available"
+        }
+        
         return OnPremiseAuthenticator(refreshUri: initializationInfo.registrationUri,
                                       transactionUri: initializationInfo.transactionUri,
                                       theme: initializationInfo.metadata.theme ?? [:] ,
