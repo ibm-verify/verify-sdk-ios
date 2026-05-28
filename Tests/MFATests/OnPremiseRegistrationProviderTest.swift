@@ -336,6 +336,36 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
         XCTAssertNil(authenticator.biometric)
     }
     
+    /// Test the initiation with out a supplied account name.
+    func testEnrollNoAccuntNameSuccess() async throws {
+        // Given
+        let registrationUrl = URL(string: "\(urlBase)/mga/sps/mmfa/user/mgmt/details")!
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.initiate")
+
+        let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
+        MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
+        
+        let enrollmentUrl = URL(string: "\(urlBase)/scim/Me")!
+        MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentUserPresence")
+        
+        // Where
+        let controller = MFARegistrationController(json: scanResult)
+         
+        // Then
+        XCTAssertNotNil(controller)
+        
+        // Then
+        let provider = try await controller.initiate(with: "", pushToken: "abc123")
+        XCTAssertNotNil(provider)
+        
+        // Then
+        let authenticator = try await provider.finalize()
+        XCTAssertNotNil(authenticator)
+        XCTAssertEqual(authenticator.token.accessToken, "A1b2C3D4")
+        XCTAssertEqual(authenticator.accountName, "testuser")
+        XCTAssertNil(authenticator.biometric)
+    }
+    
     /// Test the finalization of the a registration with TOTP.
     func testFinalizeRegistration() async throws -> any MFAAuthenticatorDescriptor {
         // Given
