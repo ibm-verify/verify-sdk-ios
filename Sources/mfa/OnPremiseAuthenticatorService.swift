@@ -295,16 +295,20 @@ extension OnPremiseAuthenticatorService {
     /// - Remark: The `TransactionResult.transactions` have been sorted by `creationDate`.
     private func createPendingTransaction(with result: TransactionResult, transactionId: String? = nil) async throws -> PendingTransactionInfo {
         // Optional variable to hold the transaction. By default, we'll store the first transaction encountered but reassign if we match the authenticatorId and/or transactionId.
-        var transactionInfoResult = result.transactions.first
+        var transactionInfoResult: TransactionResult.TransactionInfo?
 
         // 1. Get a list of attributesPending that contain mmfa:request:authenticator:id.
         let identifiers = result.attributes.filter({ $0.uri == "mmfa:request:authenticator:id" })
         
         // 2. A user may have more than one registered authenticator, get the [attributePending] for the authenticator that will verify the transaction.
         if let identifier = identifiers.first(where: { $0.values.contains(authenticatorId) }) {
-            transactionInfoResult = result.transactions.first(where: {
-                $0.transactionId == identifier.transactionId
-            })
+            // If a transactionId was passed in as a parameter, get that one, otherwise get the first transaction for the authenticator.
+            if let transactionId = transactionId {
+                transactionInfoResult = result.transactions.first(where: { $0.transactionId == transactionId })
+            }
+            else {
+                transactionInfoResult = result.transactions.first(where: { $0.transactionId == identifier.transactionId })
+            }
         }
         
         // 3. Make sure a transaction is resolved.
