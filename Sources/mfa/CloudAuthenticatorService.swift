@@ -338,7 +338,7 @@ extension CloudAuthenticatorService {
         
         // 5. The keyName in v3 is derived from signature additonalData, if it doesn't exist (i.e v2 enrolment), construct it.
         let keyName = methodInfo.keyName
-            ?? "\(authenticatorId).\(methodInfo.subType == "userPresence" ? "userPresence" : "biometrics")"
+            ?? "\(methodInfo.id).\(methodInfo.subType == "userPresence" ? "userPresence" : "biometrics")"
 
         // 6. Construct the pending transaction taking data from the transaction, attribute and authentication info.
         let pendingTransactionInfo = PendingTransactionInfo(
