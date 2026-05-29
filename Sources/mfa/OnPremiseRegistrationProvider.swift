@@ -35,11 +35,13 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             self.registrationInfo = result
             
             if result.ignoreSSLCertificate {
-                // Set the URLSession for certificate pinning.
-                self.urlSession = URLSession(configuration: .default, delegate: SelfSignedCertificateDelegate(), delegateQueue: nil)
+                // Set the URLSession for certificate pinning with ephemeral configuration
+                // to prevent cookie persistence across registrations.
+                self.urlSession = URLSession(configuration: .ephemeral, delegate: SelfSignedCertificateDelegate(), delegateQueue: nil)
             }
             else {
-                self.urlSession = URLSession.shared
+                // Use ephemeral configuration to prevent cookie persistence.
+                self.urlSession = URLSession(configuration: .ephemeral)
             }
         }
         catch {
@@ -298,7 +300,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
     public func finalize() async throws -> OnPremiseAuthenticator {
         // Ensure initializationInfo exists before proceeding.
-        guard let initializationInfo = self.initializationInfo else {
+        guard let initializationInfo = self.initializationInfo, let hostname = initializationInfo.registrationUri.host else {
             throw OnPremiseRegistrationError.invalidState
         }
         
@@ -307,12 +309,17 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             throw MFAServiceError.tokenNotFound
         }
         
-        return OnPremiseAuthenticator(refreshUri: initializationInfo.registrationUri,
+        // If accountName is empty, see if we can get it from the token, otherwise "Not available"
+        if self.accountName.isEmpty {
+            self.accountName = token.additionalData["display_name"] as? String ?? "Not available"
+        }
+        
+        return OnPremiseAuthenticator(refreshUri: initializationInfo.tokenUri,
                                       transactionUri: initializationInfo.transactionUri,
                                       theme: initializationInfo.metadata.theme ?? [:] ,
                                       token: token,
                                       id: self.authenticatorId,
-                                      serviceName: initializationInfo.metadata.serviceName,
+                                      serviceName: initializationInfo.metadata.serviceName ?? hostname,
                                       accountName: self.accountName,
                                       userPresence: self.userPresence,
                                       biometric: self.biometric,
@@ -443,7 +450,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     /// Represents metadata information embedded in the initialization payload.
     struct Metadata: Codable {
         /// Name of the service (e.g., "ISVA Service").
-        let serviceName: String
+        let serviceName: String?
         
         /// A custom color scheme that can be applied to app elements.  For example, buttons, background-color, text color.
         let theme: [String: String]?

@@ -40,11 +40,13 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         self.authenticatorId = authenticatorId
         
         if let certificateTrust = certificateTrust {
-            // Set the URLSession for certificate pinning.
-            self.urlSession = URLSession(configuration: .default, delegate: certificateTrust, delegateQueue: nil)
+            // Set the URLSession for certificate pinning with ephemeral configuration
+            // to prevent cookie persistence across operations.
+            self.urlSession = URLSession(configuration: .ephemeral, delegate: certificateTrust, delegateQueue: nil)
         }
         else {
-            self.urlSession = URLSession.shared
+            // Use ephemeral configuration to prevent cookie persistence.
+            self.urlSession = URLSession(configuration: .ephemeral)
         }
     }
     
@@ -73,14 +75,14 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
             }
         }
         
-       // Get a new OAuth token from refresh and update device details.
-       let oauthProvider = OAuthProvider(clientId: clientId, additionalParameters: attributes)
-       let result = try await oauthProvider.refresh(issuer: self.refreshUri, refreshToken: refreshToken)
+        // Get a new OAuth token from refresh and update device details.
+        let oauthProvider = OAuthProvider(clientId: clientId, additionalParameters: attributes, certificateTrust: self.urlSession.delegate)
+        let result = try await oauthProvider.refresh(issuer: self.refreshUri, refreshToken: refreshToken)
             
-       // Update the internal accessToken and return
-       self.accessToken = result.accessToken
+        // Update the internal accessToken and return
+        self.accessToken = result.accessToken
             
-       return result
+        return result
     }
     
     /// Retrieve the next transaction that is associated with an authenticator registration.
@@ -109,9 +111,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         }
         
         // Process the transactions, which involves making another request to get the verification challenge data.
-        guard let pendingTransaction = try? await createPendingTransaction(with: transactionResult, transactionId: transactionId) else {
-            throw MFAServiceError.unableToCreateTransaction
-        }
+        let pendingTransaction = try await createPendingTransaction(with: transactionResult, transactionId: transactionId)
         
         self.currentPendingTransaction = pendingTransaction
         
@@ -297,7 +297,7 @@ extension OnPremiseAuthenticatorService {
     /// - Remark: The `TransactionResult.transactions` have been sorted by `creationDate`.
     private func createPendingTransaction(with result: TransactionResult, transactionId: String? = nil) async throws -> PendingTransactionInfo {
         // Optional variable to hold the transaction. By default, we'll store the first transaction encountered but reassign if we match the authenticatorId and/or transactionId.
-        var transactionInfoResult = result.transactions.first(where: { $0.transactionId == transactionId }) ?? result.transactions.first
+        var transactionInfoResult: TransactionResult.TransactionInfo?
 
         // 1. Get a list of attributesPending that contain mmfa:request:authenticator:id.
         let identifiers = result.attributes.filter({ $0.uri == "mmfa:request:authenticator:id" })
@@ -314,6 +314,10 @@ extension OnPremiseAuthenticatorService {
         }
         
         // 3. Make sure a transaction is resolved.
+        if !identifiers.isEmpty && transactionInfoResult == nil {
+            throw MFAServiceError.noTransactionForAuthenticator
+        }
+        
         guard let transactionInfo = transactionInfoResult else {
             throw MFAServiceError.unableToCreateTransaction
         }
@@ -334,9 +338,14 @@ extension OnPremiseAuthenticatorService {
         }
         
         // 5. Re-create the keyName from the keyHandle. Refer to the enroll method where [keyHandles] is a UUID.FactorType
-        guard let keyName = verificationInfo.keyHandles.first else {
+        guard let rawKeyName = verificationInfo.keyHandles.first else {
             throw MFAServiceError.invalidFactor
         }
+
+        // Assign "fingerprint" keyName suffix to "biometrics". This is for signatures updated from v2 SDK.
+        let keyName = rawKeyName.hasSuffix(".fingerprint")
+            ? String(rawKeyName.dropLast("fingerprint".count)) + "biometrics"
+            : rawKeyName
         
         // 6. Match the message and extras in attributesPending associated to the transactionId.
         let attributeInfo = result.attributes.filter({ $0.transactionId == transactionInfo.transactionId && ($0.uri == "mmfa:request:context:message" || $0.uri == "mmfa:request:extras") })
