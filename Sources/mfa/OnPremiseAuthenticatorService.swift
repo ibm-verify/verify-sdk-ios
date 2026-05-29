@@ -73,14 +73,14 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
             }
         }
         
-       // Get a new OAuth token from refresh and update device details.
-       let oauthProvider = OAuthProvider(clientId: clientId, additionalParameters: attributes)
-       let result = try await oauthProvider.refresh(issuer: self.refreshUri, refreshToken: refreshToken)
+        // Get a new OAuth token from refresh and update device details.
+        let oauthProvider = OAuthProvider(clientId: clientId, additionalParameters: attributes, certificateTrust: self.urlSession.delegate)
+        let result = try await oauthProvider.refresh(issuer: self.refreshUri, refreshToken: refreshToken)
             
-       // Update the internal accessToken and return
-       self.accessToken = result.accessToken
+        // Update the internal accessToken and return
+        self.accessToken = result.accessToken
             
-       return result
+        return result
     }
     
     /// Retrieve the next transaction that is associated with an authenticator registration.
