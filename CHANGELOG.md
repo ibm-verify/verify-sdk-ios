@@ -4,6 +4,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 
 ### IBM Verify MFA SDK for iOS
 * Fixes issue when `service_name` not provided in `OnPremiseRegistrationProvider` MFA registration.
+* Fixes the `refershUri` for `OnPremiseRegistrationProvider` MFA registration.
 * Adds "Not available" as the `OnPremiseAuthenticator.displayName` when omitted from `OnPremiseRegistrationProvider.initiate()` and not present in the access token during on-premise MFA registration.
 
 ### IBM Verify Core SDK for iOS

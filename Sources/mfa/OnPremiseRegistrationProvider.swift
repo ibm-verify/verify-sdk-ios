@@ -312,7 +312,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             self.accountName = token.additionalData["display_name"] as? String ?? "Not available"
         }
         
-        return OnPremiseAuthenticator(refreshUri: initializationInfo.registrationUri,
+        return OnPremiseAuthenticator(refreshUri: initializationInfo.tokenUri,
                                       transactionUri: initializationInfo.transactionUri,
                                       theme: initializationInfo.metadata.theme ?? [:] ,
                                       token: token,
