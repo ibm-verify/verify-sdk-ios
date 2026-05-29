@@ -336,9 +336,14 @@ extension OnPremiseAuthenticatorService {
         }
         
         // 5. Re-create the keyName from the keyHandle. Refer to the enroll method where [keyHandles] is a UUID.FactorType
-        guard let keyName = verificationInfo.keyHandles.first else {
+        guard let rawKeyName = verificationInfo.keyHandles.first else {
             throw MFAServiceError.invalidFactor
         }
+
+        // Assign "fingerprint" keyName suffix to "biometrics". This is for signatures updated from v2 SDK.
+        let keyName = rawKeyName.hasSuffix(".fingerprint")
+            ? String(rawKeyName.dropLast("fingerprint".count)) + "biometrics"
+            : rawKeyName
         
         // 6. Match the message and extras in attributesPending associated to the transactionId.
         let attributeInfo = result.attributes.filter({ $0.transactionId == transactionInfo.transactionId && ($0.uri == "mmfa:request:context:message" || $0.uri == "mmfa:request:extras") })
