@@ -69,8 +69,8 @@ extension MFAServiceDescriptor {
         let headers = ["Authorization": "Bearer \(self.accessToken)"]
         let resource = HTTPResource<Void>(.post, url: loginUri, accept: .json, contentType: .json, body: body, headers: headers)
         
-        // Perfom the request
-        return try await URLSession.shared.dataTask(for: resource)
+        // Perform the request using ephemeral session to prevent cookie persistence.
+        return try await URLSession(configuration: .ephemeral).dataTask(for: resource)
     }
     
     /// Complete a second factor authentication challenge associated with a registered authenticator.

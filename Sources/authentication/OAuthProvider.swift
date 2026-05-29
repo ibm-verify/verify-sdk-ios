@@ -87,11 +87,13 @@ public class OAuthProvider {
         self.additionalParameters = additionalParameters
         
         if let certificateTrust = certificateTrust {
-            // Set the URLSession for certificate pinning.
-            self.urlSession = URLSession(configuration: .default, delegate: certificateTrust, delegateQueue: nil)
+            // Set the URLSession for certificate pinning with ephemeral configuration
+            // to prevent cookie persistence across operations.
+            self.urlSession = URLSession(configuration: .ephemeral, delegate: certificateTrust, delegateQueue: nil)
         }
         else {
-            self.urlSession = URLSession.shared
+            // Use ephemeral configuration to prevent cookie persistence.
+            self.urlSession = URLSession(configuration: .ephemeral)
         }
     }
     
@@ -115,11 +117,13 @@ public class OAuthProvider {
         let urlSession: URLSession
         
         if let certificateTrust = certificateTrust {
-            // Set the URLSession for certificate pinning.
-            urlSession = URLSession(configuration: .default, delegate: certificateTrust, delegateQueue: nil)
+            // Set the URLSession for certificate pinning with ephemeral configuration
+            // to prevent cookie persistence across operations.
+            urlSession = URLSession(configuration: .ephemeral, delegate: certificateTrust, delegateQueue: nil)
         }
         else {
-            urlSession = URLSession.shared
+            // Use ephemeral configuration to prevent cookie persistence.
+            urlSession = URLSession(configuration: .ephemeral)
         }
         
         return try await urlSession.dataTask(for: resource)

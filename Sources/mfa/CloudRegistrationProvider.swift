@@ -101,7 +101,8 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
                 return Result.success(value)
             }
             
-            return try await URLSession.shared.dataTask(for: resource)
+            // Use ephemeral session to prevent cookie persistence across registrations.
+            return try await URLSession(configuration: .ephemeral).dataTask(for: resource)
             
         }
         catch {
@@ -193,8 +194,8 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
             }
         }
         
-        // Perfom the request.
-        let result = try await URLSession.shared.dataTask(for: resource)
+        // Perform the request using ephemeral session to prevent cookie persistence.
+        let result = try await URLSession(configuration: .ephemeral).dataTask(for: resource)
         self.initializationInfo = result.initialization
         self.token = result.token
     }
@@ -344,7 +345,8 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
             return Result.failure(CloudRegistrationError.enrollmentFailed(reason: "Signature sub-type not found in enrollment response."))
         }
         
-        let result = try await URLSession.shared.dataTask(for: resource)
+        // Use ephemeral session to prevent cookie persistence.
+        let result = try await URLSession(configuration: .ephemeral).dataTask(for: resource)
         
         // 3. Assign the result to the appropriate factor property.
         if signature.subType == "face" || signature.subType == "fingerprint" {
@@ -391,7 +393,8 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
         let transactionUri =  URL(string: initializationInfo.metadata.registrationUri.absoluteString.replacingOccurrences(of: "registration", with: "\(initializationInfo.id)/verifications"))!
                 
         let resource = HTTPResource<TokenInfo>(json: .post, url: registrationUri, accept: .json, body: body, headers: headers)
-        let result = try await URLSession.shared.dataTask(for: resource)
+        // Use ephemeral session to prevent cookie persistence.
+        let result = try await URLSession(configuration: .ephemeral).dataTask(for: resource)
         
         return CloudAuthenticator(refreshUri: registrationUri,
                                   transactionUri: transactionUri,

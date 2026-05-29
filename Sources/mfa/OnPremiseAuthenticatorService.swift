@@ -40,11 +40,13 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         self.authenticatorId = authenticatorId
         
         if let certificateTrust = certificateTrust {
-            // Set the URLSession for certificate pinning.
-            self.urlSession = URLSession(configuration: .default, delegate: certificateTrust, delegateQueue: nil)
+            // Set the URLSession for certificate pinning with ephemeral configuration
+            // to prevent cookie persistence across operations.
+            self.urlSession = URLSession(configuration: .ephemeral, delegate: certificateTrust, delegateQueue: nil)
         }
         else {
-            self.urlSession = URLSession.shared
+            // Use ephemeral configuration to prevent cookie persistence.
+            self.urlSession = URLSession(configuration: .ephemeral)
         }
     }
     

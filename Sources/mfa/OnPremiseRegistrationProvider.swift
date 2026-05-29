@@ -35,11 +35,13 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             self.registrationInfo = result
             
             if result.ignoreSSLCertificate {
-                // Set the URLSession for certificate pinning.
-                self.urlSession = URLSession(configuration: .default, delegate: SelfSignedCertificateDelegate(), delegateQueue: nil)
+                // Set the URLSession for certificate pinning with ephemeral configuration
+                // to prevent cookie persistence across registrations.
+                self.urlSession = URLSession(configuration: .ephemeral, delegate: SelfSignedCertificateDelegate(), delegateQueue: nil)
             }
             else {
-                self.urlSession = URLSession.shared
+                // Use ephemeral configuration to prevent cookie persistence.
+                self.urlSession = URLSession(configuration: .ephemeral)
             }
         }
         catch {
