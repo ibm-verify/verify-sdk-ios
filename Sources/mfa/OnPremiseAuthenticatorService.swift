@@ -21,8 +21,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
     /// A unique identifier to link a mobile application to the on-premise service.
     private let authenticatorId: String
     
-    /// An object that coordinates a group of related, network data transfer tasks.
-    private let urlSession: URLSession
+    public let _urlSession: URLSession
     
     /// Creates the service with the access token and related endpoint URI's.
     /// - Parameters:
@@ -42,11 +41,11 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         if let certificateTrust = certificateTrust {
             // Set the URLSession for certificate pinning with ephemeral configuration
             // to prevent cookie persistence across operations.
-            self.urlSession = URLSession(configuration: .ephemeral, delegate: certificateTrust, delegateQueue: nil)
+            self._urlSession = URLSession(configuration: .ephemeral, delegate: certificateTrust, delegateQueue: nil)
         }
         else {
             // Use ephemeral configuration to prevent cookie persistence.
-            self.urlSession = URLSession(configuration: .ephemeral)
+            self._urlSession = URLSession(configuration: .ephemeral)
         }
     }
     
@@ -76,7 +75,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         }
         
         // Get a new OAuth token from refresh and update device details.
-        let oauthProvider = OAuthProvider(clientId: clientId, additionalParameters: attributes, certificateTrust: self.urlSession.delegate)
+        let oauthProvider = OAuthProvider(clientId: clientId, additionalParameters: attributes, certificateTrust: self._urlSession.delegate)
         let result = try await oauthProvider.refresh(issuer: self.refreshUri, refreshToken: refreshToken)
             
         // Update the internal accessToken and return
@@ -101,7 +100,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         let resource = HTTPResource<TransactionResult>(json: .get, url: transactionUri, accept: .json, headers: headers, decoder: decoder)
         
         // Perfom the request to query for pending transactions.
-        guard let transactionResult = try? await self.urlSession.dataTask(for: resource) else {
+        guard let transactionResult = try? await self._urlSession.dataTask(for: resource) else {
             throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from transaction response.", bundle: .module))
         }
         
@@ -147,7 +146,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         
         // Perfom the request.
         do {
-            return try await self.urlSession.dataTask(for: resource)
+            return try await self._urlSession.dataTask(for: resource)
         }
         catch let error {
             // If the request is a user deny, no error should be returned.
@@ -206,7 +205,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         let resource = HTTPResource<Void>(.patch, url: url, accept: .json, contentType: .json, body: body, headers: headers)
         
         // Perfom the request.
-        return try await self.urlSession.dataTask(for: resource)
+        return try await self._urlSession.dataTask(for: resource)
     }
 }
 
@@ -326,7 +325,7 @@ extension OnPremiseAuthenticatorService {
         let headers = ["Authorization": "Bearer \(self.accessToken)"]
         let resource = HTTPResource<VerificationInfo>(json: .post, url: transactionInfo.requestUrl, accept: .json, headers: headers)
         
-        guard let verificationInfo = try? await self.urlSession.dataTask(for: resource) else {
+        guard let verificationInfo = try? await self._urlSession.dataTask(for: resource) else {
             throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from registration response.", bundle: .module))   // An error here typically is due to missing serverChallenge attribute introduced in ISAM 9.0.6.
         }
         
