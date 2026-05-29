@@ -1,40 +1,20 @@
 Note: This is in reverse chronological order, so newer entries are added to the top.
 # v3.1.2
-28 April 2026
+30 May 2026
 
 ### IBM Verify MFA SDK for iOS
-* Fixes issue when `service_name` not provided in `OnPremiseRegistrationProvider` MFA registration.
+* Fixes issue when service_name not provided in OnPremiseRegistrationProvider MFA registration.
 * Fixes the `refreshUri` for `OnPremiseRegistrationProvider` MFA registration.
-* Normalise "fingerprint" to "biometrics" for signture enrolments created using IBM Verify v2 SDK. 
+* Normalise "fingerprint" to "biometrics" for signature enrolments created using IBM Verify v2 SDK.
 * Adds "Not available" as the `OnPremiseAuthenticator.displayName` when omitted from `OnPremiseRegistrationProvider.initiate()` and not present in the access token during on-premise MFA registration.
+* Use ephemeral sessions for network operations
 
 ### IBM Verify Core SDK for iOS
 * Increment version
 
 ### IBM Verify Authentication SDK for iOS
 * Increment version
-
-### IBM Verify Adaptive SDK for iOS
-* Increment version
-
-### IBM Verify FIDO2™ SDK for iOS
-* Increment version
-<br/>
-<br/>
-
-# v3.1.1
-22 April 2026
-
-## Package support for iOS16
-
-### IBM Verify MFA SDK for iOS
-* Increment version
-
-### IBM Verify Core SDK for iOS
-* Increment version
-
-### IBM Verify Authentication SDK for iOS
-* Increment version
+* Use ephemeral sessions for network operations
 
 ### IBM Verify Adaptive SDK for iOS
 * Increment version
