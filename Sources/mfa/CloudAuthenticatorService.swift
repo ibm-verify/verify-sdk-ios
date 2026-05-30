@@ -30,7 +30,8 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
     nonisolated public let refreshUri: URL
     nonisolated public let transactionUri: URL
     
-   public let _urlSession: URLSession
+    @_documentation(visibility: private)
+    public let _urlSession: URLSession
     
     /// A unique identifier to link a mobile application to the cloud service.
     private let authenticatorId: String

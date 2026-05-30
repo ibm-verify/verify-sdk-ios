@@ -21,6 +21,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
     /// A unique identifier to link a mobile application to the on-premise service.
     private let authenticatorId: String
     
+    @_documentation(visibility: private)
     public let _urlSession: URLSession
     
     /// Creates the service with the access token and related endpoint URI's.
