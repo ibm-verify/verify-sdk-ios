@@ -336,7 +336,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         let code: String
         
         /// A raw options string containing configuration flags (e.g., "ignoreSslCerts=false").
-        let options: String
+        let options: String?
         
         /// A URL pointing to user details.
         let uri: URL
@@ -361,23 +361,28 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         /// When this flag is `true` a  [URLSessionDelegate](https://developer.apple.com/documentation/foundation/urlsessiondelegate/1409308-urlsession) should be assigned to the `URLSession` to validate authentication challenges. For example certificate pinning.
         /// - Returns: `true` if `ignoreSslCerts=true` is present in the options string; otherwise `false`.
         var ignoreSSLCertificate: Bool {
+            // Safely unwrap the optional string. If it's missing, default to false.
+            guard let optionsString = options else {
+                return false
+            }
+            
             // Split the options string into key-value pairs using commas
-            let pairs = options.split(separator: ",").map { $0.split(separator: "=") }
-
+            let pairs = optionsString.split(separator: ",").map { $0.split(separator: "=") }
+            
             // Iterate through each key-value pair
             for pair in pairs {
                 // Ensure the pair contains exactly two elements: key and value
                 if pair.count == 2 {
                     let key = pair[0].trimmingCharacters(in: .whitespaces)
                     let value = pair[1].trimmingCharacters(in: .whitespaces).lowercased()
-
+                    
                     // Check if the key is "ignoreSslCerts" and return true if the value is "true"
                     if key == "ignoreSslCerts" {
                         return value == "true"
                     }
                 }
             }
-
+            
             // Default to false if the key is not found or improperly formatted
             return false
         }
