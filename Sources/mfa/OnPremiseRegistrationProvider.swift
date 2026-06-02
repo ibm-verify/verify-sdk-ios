@@ -230,20 +230,32 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         let headers = ["Authorization": token.authorizationHeader]
 
         // Execute the request
-        let resource = HTTPResource<TotpInfo>(json: .get, url: totpUri, headers: headers)
+        let resource = HTTPResource<TOTPEnrollmentInfo>(json: .get, url: totpUri, headers: headers)
         
-        let result = try await self.urlSession.dataTask(for: resource)
-        
-        let factor = TOTPFactorInfo(with: result.username ?? "Not available",
-                                    digits: result.digits,
-                                    algorithm: SigningAlgorithm(rawValue: result.algorithm) ?? .sha1,
-                                    period: result.period)
-        
-        return OTPAuthenticator(with: initializationInfo.metadata.serviceName ?? hostname,
-                                accountName: result.username ?? "Not available",
-                                factor: factor)
-        
-        
+        do {
+            let result = try await self.urlSession.dataTask(for: resource)
+            let factor = result.createFactorInfo()
+            
+            // Use localized fallback for missing username
+            let accountName = result.username ?? String(localized: "Not available", bundle: .module)
+            
+            return OTPAuthenticator(
+                with: initializationInfo.metadata.serviceName ?? hostname,
+                accountName: accountName,
+                factor: factor
+            )
+        }
+        catch let decodingError as DecodingError {
+            throw OnPremiseRegistrationError.dataDecodingFailed(reason: decodingError.localizedDescription)
+        }
+        catch let urlError as URLSessionError {
+            // Preserve server error messages from URLSessionError.invalidResponse
+            throw OnPremiseRegistrationError.underlyingError(error: urlError)
+        }
+        catch {
+            // Catch any other errors and preserve them
+            throw OnPremiseRegistrationError.underlyingError(error: error)
+        }
     }
     
     // MARK: - Private Methods
@@ -515,28 +527,44 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         }
     }
     
-    struct TotpInfo: Decodable {
-        // MARK: Properties
+    /// Internal initialization payload returned by the server when registering a new TOTP credential.
+    struct TOTPEnrollmentInfo: Decodable, Sendable {
+        
+        // MARK: - Properties
         
         let secret: String
         let digits: Int
         let period: Int
         let algorithm: String
-        
-        /// The user name of the totp.
         let username: String?
          
-        // MARK: Internal Enumerators
+        // MARK: - Decoding Contracts
         
-        // Top-level keys
-        
-        /// The root level JSON structure for decoding.
         private enum CodingKeys: String, CodingKey {
             case secret = "secretKey"
             case digits
             case period
             case algorithm
             case username
+        }
+        
+        // MARK: - Convenience Mappings
+        
+        /// Converts this network payload into a configured domain-level `TOTPFactorInfo` instance.
+        ///
+        /// This method performs the necessary translation from raw network data types to safety-bounded  domain types—including parsing the raw algorithm string into a valid `SigningAlgorithm`.
+        ///
+        /// - Returns: A fully prepared `TOTPFactorInfo` model loaded with the server-side parameters.
+        func createFactorInfo() -> TOTPFactorInfo {
+            // Resolve the raw string from the API payload into your local configuration enum
+            let resolvedAlgorithm = SigningAlgorithm(from: algorithm) ?? .sha1
+            
+            return TOTPFactorInfo(
+                with: secret,
+                digits: digits,
+                algorithm: resolvedAlgorithm,
+                period: period
+            )
         }
     }
 }
