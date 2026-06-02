@@ -218,32 +218,37 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             throw OnPremiseRegistrationError.enrollmentFailed(reason: "One-time passcode not provided in metadata configuration.")
         }
         
-        guard let initializationInfo = self.initializationInfo, let totpUri = initializationInfo.totpUri, let hostname = initializationInfo.registrationUri.host else {
+        guard let initializationInfo = self.initializationInfo,
+              let totpUri = initializationInfo.totpUri else {
             throw OnPremiseRegistrationError.invalidState
         }
         
-        // Safely unwrap the optional token to create the headers dictionary.
         guard let token = self.token else {
             throw MFAServiceError.tokenNotFound
         }
          
         let headers = ["Authorization": token.authorizationHeader]
 
-        // Execute the request with error-aware parsing
-        let resource = HTTPResource<TOTPEnrollmentInfo>(.get, url: totpUri, accept: .json, headers: headers) { data, response in
+        // Define a simple response structure to extract secretKeyUrl
+        struct TOTPResponse: Decodable {
+            let secretKeyUrl: String
+            let message: String?  // Optional error message field
+        }
+
+        // Custom resource with error-aware parsing
+        let resource = HTTPResource<TOTPResponse>(.get, url: totpUri, accept: .json, headers: headers) { data, response in
             guard let data = data, !data.isEmpty else {
                 return Result.failure(OnPremiseRegistrationError.dataInitializationFailed)
             }
             
-            // First, check if the response contains an error message
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let message = json["message"] as? String {
-                return Result.failure(OnPremiseRegistrationError.enrollmentFailed(reason: message))
-            }
-            
-            // If no error message, attempt to decode as TOTPEnrollmentInfo
             do {
-                let result = try JSONDecoder().decode(TOTPEnrollmentInfo.self, from: data)
+                let result = try JSONDecoder().decode(TOTPResponse.self, from: data)
+                
+                // Check if response contains an error message
+                if let message = result.message {
+                    return Result.failure(OnPremiseRegistrationError.enrollmentFailed(reason: message))
+                }
+                
                 return Result.success(result)
             }
             catch {
@@ -251,16 +256,16 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             }
         }
         
-        let result = try await self.urlSession.dataTask(for: resource)
-        let factor = result.createFactorInfo()
+        let response = try await self.urlSession.dataTask(for: resource)
         
-        let accountName = result.username ?? String(localized: "Not available", bundle: .module)
+        // Parse the otpauth:// URI using OTPAuthenticator's built-in parser
+        guard let authenticator = OTPAuthenticator(fromQRScan: response.secretKeyUrl) else {
+            throw OnPremiseRegistrationError.dataDecodingFailed(
+                reason: String(localized: "Failed to parse OTP URI from server response.", bundle: .module)
+            )
+        }
         
-        return OTPAuthenticator(
-            with: initializationInfo.metadata.serviceName ?? hostname,
-            accountName: accountName,
-            factor: factor
-        )
+        return authenticator
     }
     
     // MARK: - Private Methods
@@ -529,47 +534,6 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         enum CodingKeys: String, CodingKey {
             case serviceName = "service_name"
             case theme
-        }
-    }
-    
-    /// Internal initialization payload returned by the server when registering a new TOTP credential.
-    struct TOTPEnrollmentInfo: Decodable, Sendable {
-        
-        // MARK: - Properties
-        
-        let secret: String
-        let digits: Int
-        let period: Int
-        let algorithm: String
-        let username: String?
-         
-        // MARK: - Decoding Contracts
-        
-        private enum CodingKeys: String, CodingKey {
-            case secret = "secretKey"
-            case digits
-            case period
-            case algorithm
-            case username
-        }
-        
-        // MARK: - Convenience Mappings
-        
-        /// Converts this network payload into a configured domain-level `TOTPFactorInfo` instance.
-        ///
-        /// This method performs the necessary translation from raw network data types to safety-bounded  domain types—including parsing the raw algorithm string into a valid `SigningAlgorithm`.
-        ///
-        /// - Returns: A fully prepared `TOTPFactorInfo` model loaded with the server-side parameters.
-        func createFactorInfo() -> TOTPFactorInfo {
-            // Resolve the raw string from the API payload into your local configuration enum
-            let resolvedAlgorithm = SigningAlgorithm(from: algorithm) ?? .sha1
-            
-            return TOTPFactorInfo(
-                with: secret,
-                digits: digits,
-                algorithm: resolvedAlgorithm,
-                period: period
-            )
         }
     }
 }
