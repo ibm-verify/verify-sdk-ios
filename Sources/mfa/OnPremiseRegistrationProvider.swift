@@ -91,6 +91,10 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     public var canEnrollUserPresence: Bool {
         initializationInfo?.signatureMethods["user_presence"]?.enabled ?? false
     }
+    
+    public var canEnrollOneTimePasscode: Bool {
+        initializationInfo?.totpUri != nil
+    }
        
     /// Initiates the multi-factor method enrollment.
     /// - Parameters:
@@ -157,6 +161,10 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     // MARK: - User Presence Enrollment
 
     public func enrollUserPresence(savePrivateKey: (SecKeyAddType) throws -> String) async throws {
+        guard canEnrollUserPresence else {
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: "User presence signature method not provided in metadata configuration.")
+        }
+        
         let signature = (methodKey: "user_presence", subType: "userPresence")
         try await performSignatureEnrollment(signature: signature, savePrivateKey: savePrivateKey)
     }
@@ -164,6 +172,10 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     // MARK: - Biometry Enrollment
 
     public func enrollBiometric(savePrivateKey: (SecKeyAddType) throws -> String, context: LAContext? = nil, reason: String?) async throws {
+        guard canEnrollBiometric else {
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: "Biometric signature method not provided in metadata configuration.")
+        }
+        
         let context = context ?? LAContext()
         let policy: LAPolicy = .deviceOwnerAuthenticationWithBiometrics
         var error: NSError?
@@ -199,6 +211,41 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         try await performSignatureEnrollment(signature: signature, savePrivateKey: savePrivateKey)
     }
     
+    // MARK: - One-time Passcode Enrollment
+    
+    public func enrollOneTimePasscode() async throws -> OTPAuthenticator {
+        guard canEnrollOneTimePasscode else {
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: "One-time passcode not provided in metadata configuration.")
+        }
+        
+        guard let initializationInfo = self.initializationInfo, let totpUri = initializationInfo.totpUri, let hostname = initializationInfo.registrationUri.host else {
+            throw OnPremiseRegistrationError.invalidState
+        }
+        
+        // Safely unwrap the optional token to create the headers dictionary.
+        guard let token = self.token else {
+            throw MFAServiceError.tokenNotFound
+        }
+         
+        let headers = ["Authorization": token.authorizationHeader]
+
+        // Execute the request
+        let resource = HTTPResource<TotpInfo>(json: .get, url: totpUri, headers: headers)
+        
+        let result = try await self.urlSession.dataTask(for: resource)
+        
+        let factor = TOTPFactorInfo(with: result.username ?? "Not available",
+                                    digits: result.digits,
+                                    algorithm: SigningAlgorithm(rawValue: result.algorithm) ?? .sha1,
+                                    period: result.period)
+        
+        return OTPAuthenticator(with: initializationInfo.metadata.serviceName ?? hostname,
+                                accountName: result.username ?? "Not available",
+                                factor: factor)
+        
+        
+    }
+    
     // MARK: - Private Methods
 
     private func performSignatureEnrollment(signature: EnrollableSignature, savePrivateKey: (SecKeyAddType) throws -> String) async throws {
@@ -206,28 +253,25 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             throw OnPremiseRegistrationError.invalidState
         }
 
+        // Cache the title-case string to avoid redundant allocations in error handlers
+        let methodTitle = signature.subType.camelToTitleCase
+        
         // Validate signature method exists
         guard let method = initializationInfo.signatureMethods[signature.methodKey] else {
-            throw OnPremiseRegistrationError.invalidRegistrationData(reason: String(localized: "Signature method '\(signature.subType.camelToTitleCase)' not found.", bundle: .module))
+            throw OnPremiseRegistrationError.invalidRegistrationData(reason: String(localized: "Signature method '\(methodTitle)' not found.", bundle: .module))
         }
 
         guard method.enabled else {
-            throw OnPremiseRegistrationError.signatureMethodNotEnabled(
-                type: signature.subType.camelToTitleCase
-            )
+            throw OnPremiseRegistrationError.signatureMethodNotEnabled(type: methodTitle)
         }
 
         guard let attributes = method.attributes else {
-            throw OnPremiseRegistrationError.invalidRegistrationData(
-                reason: "Signature method '\(signature.subType.camelToTitleCase)' has no attributes."
-            )
+            throw OnPremiseRegistrationError.invalidRegistrationData(reason: "Signature method '\(methodTitle)' has no attributes.")
         }
 
         // Resolve algorithm
         guard let preferredAlgorithm = SigningAlgorithm(from: attributes.algorithm) else {
-            throw CloudRegistrationError.invalidAlgorithm(
-                reason: "The resolved algorithm '\(attributes.algorithm)' is not valid."
-            )
+            throw CloudRegistrationError.invalidAlgorithm(reason: "The resolved algorithm '\(attributes.algorithm)' is not valid.")
         }
 
         // Generate key pair
@@ -404,6 +448,9 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         /// Endpoint for enrollment operations.
         let registrationUri: URL
         
+        /// The time based one-time passcode endpoint.
+        let totpUri: URL?
+        
         /// The QR code login location endpoint URL
         /// - remark: This value is retrieved from `qrlogin_endpoint`.  If the value is missing, an attempt is made to retrieved the `qrlogin_endpoint` value from the on-premise metadata.json file.
         ///
@@ -445,6 +492,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             case transactionUri = "authntrxn_endpoint"
             case metadata
             case discoveryMechanisms = "discovery_mechanisms"
+            case totpUri = "totp_shared_secret_endpoint"
             case registrationUri = "enrollment_endpoint"
             case qrloginUri = "qrlogin_endpoint"
             case version
@@ -464,6 +512,31 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         enum CodingKeys: String, CodingKey {
             case serviceName = "service_name"
             case theme
+        }
+    }
+    
+    struct TotpInfo: Decodable {
+        // MARK: Properties
+        
+        let secret: String
+        let digits: Int
+        let period: Int
+        let algorithm: String
+        
+        /// The user name of the totp.
+        let username: String?
+         
+        // MARK: Internal Enumerators
+        
+        // Top-level keys
+        
+        /// The root level JSON structure for decoding.
+        private enum CodingKeys: String, CodingKey {
+            case secret = "secretKey"
+            case digits
+            case period
+            case algorithm
+            case username
         }
     }
 }

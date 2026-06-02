@@ -142,6 +142,10 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
     public var canEnrollUserPresence: Bool {
         initializationInfo?.metadata.authenticationMethods.signatureMethods["signature_userPresence"]?.enabled ?? false
     }
+    
+    public var canEnrollOneTimePasscode: Bool {
+        false
+    }
        
     /// Initiates the multi-factor method enrollment.
     /// - Parameters:
@@ -292,6 +296,10 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
         // Perform server enrollment
         try await enroll(for: signature, keyLabel: keyLabel, publicKey: publicKey.x509Representation, signedData: signedChallenge, algorithm: preferredAlgorithm, enrollmentUri: method.enrollmentUri
         )
+    }
+    
+    public func enrollOneTimePasscode() async throws -> OTPAuthenticator {
+        fatalError("enrollOneTimePasscode() has not been implemented yet.")
     }
     
     /// A private helper function to handle the core enrollment logic for all signature factors.
