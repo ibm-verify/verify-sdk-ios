@@ -229,33 +229,38 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
          
         let headers = ["Authorization": token.authorizationHeader]
 
-        // Execute the request
-        let resource = HTTPResource<TOTPEnrollmentInfo>(json: .get, url: totpUri, headers: headers)
+        // Execute the request with error-aware parsing
+        let resource = HTTPResource<TOTPEnrollmentInfo>(.get, url: totpUri, accept: .json, headers: headers) { data, response in
+            guard let data = data, !data.isEmpty else {
+                return Result.failure(OnPremiseRegistrationError.dataInitializationFailed)
+            }
+            
+            // First, check if the response contains an error message
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = json["message"] as? String {
+                return Result.failure(OnPremiseRegistrationError.enrollmentFailed(reason: message))
+            }
+            
+            // If no error message, attempt to decode as TOTPEnrollmentInfo
+            do {
+                let result = try JSONDecoder().decode(TOTPEnrollmentInfo.self, from: data)
+                return Result.success(result)
+            }
+            catch {
+                return Result.failure(OnPremiseRegistrationError.dataDecodingFailed(reason: error.localizedDescription))
+            }
+        }
         
-        do {
-            let result = try await self.urlSession.dataTask(for: resource)
-            let factor = result.createFactorInfo()
-            
-            // Use localized fallback for missing username
-            let accountName = result.username ?? String(localized: "Not available", bundle: .module)
-            
-            return OTPAuthenticator(
-                with: initializationInfo.metadata.serviceName ?? hostname,
-                accountName: accountName,
-                factor: factor
-            )
-        }
-        catch let decodingError as DecodingError {
-            throw OnPremiseRegistrationError.dataDecodingFailed(reason: decodingError.localizedDescription)
-        }
-        catch let urlError as URLSessionError {
-            // Preserve server error messages from URLSessionError.invalidResponse
-            throw OnPremiseRegistrationError.underlyingError(error: urlError)
-        }
-        catch {
-            // Catch any other errors and preserve them
-            throw OnPremiseRegistrationError.underlyingError(error: error)
-        }
+        let result = try await self.urlSession.dataTask(for: resource)
+        let factor = result.createFactorInfo()
+        
+        let accountName = result.username ?? String(localized: "Not available", bundle: .module)
+        
+        return OTPAuthenticator(
+            with: initializationInfo.metadata.serviceName ?? hostname,
+            accountName: accountName,
+            factor: factor
+        )
     }
     
     // MARK: - Private Methods
