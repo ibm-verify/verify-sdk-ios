@@ -14,7 +14,7 @@ An [example](../../Examples/authentication) application is available for the Aut
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.2")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.3")
 ]
 ```
 

@@ -33,4 +33,7 @@ public struct OnPremiseAuthenticator: MFAAuthenticatorDescriptor, Sendable {
     
     /// The unique identifier between the service and the client app.
     public private(set) var clientId: String
+    
+    /// The unique identifier between the service and authenticator.
+    public private(set) var tenantId: String
 }
