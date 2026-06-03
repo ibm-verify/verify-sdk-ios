@@ -176,7 +176,7 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
             throw CloudRegistrationError.dataDecodingFailed(reason: String(localized: "Failed to serialize registration data.", bundle: .module))
         }
         
-        let url = URL(string: self.registrationInfo.uri.absoluteString + "?skipTotpEnrollment=true")!
+        let url = URL(string: self.registrationInfo.uri.absoluteString + "?skipTotpEnrollment=false")!
         
         // Construct the request and parsing method.  We decode the metadata, then the token using the TokenInfo in the Authentication module.
         let resource = HTTPResource<(initialization: InitializationInfo, token: TokenInfo)>(.post, url: url, accept: .json, contentType: .json, body: body) { data, response in
