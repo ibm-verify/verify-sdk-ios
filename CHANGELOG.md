@@ -1,26 +1,4 @@
 Note: This is in reverse chronological order, so newer entries are added to the top.
-# v3.1.3
-3 June 2026
-
-### IBM Verify MFA SDK for iOS
-* Support for one-time passcode registration in `OnPremiseRegistrationProvider` and `CloudRegistrationProvider`.
-* Increment version
-
-### IBM Verify Core SDK for iOS
-* Increment version
-
-### IBM Verify Authentication SDK for iOS
-* Increment version
-
-### IBM Verify Adaptive SDK for iOS
-* Increment version
-
-### IBM Verify FIDO2™ SDK for iOS
-* Increment version
-<br/>
-<br/>
-
-
 # v3.1.2
 30 May 2026
 

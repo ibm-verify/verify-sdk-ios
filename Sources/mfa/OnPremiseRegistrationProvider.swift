@@ -61,9 +61,6 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     /// A unique identifier to link a mobile application to the on-premise service.
     private var authenticatorId: String = ""
     
-    /// A unique identifier to link a authenticator to the on-premise service.
-    private var tenantId: String = UUID().uuidString
-    
     /// The on-premises registration information.
     private let registrationInfo: RegistrationInfo
     
@@ -115,7 +112,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         var attributes = MFAAttributeInfo.dictionary(snakeCaseKey: true)
         attributes["account_name"] = self.accountName
         attributes["push_token"] = self.pushToken
-        attributes["tenant_id"] = self.tenantId
+        attributes["tenant_id"] = UUID().uuidString
         
         // If there is additional data, merge with the parameters retaining existing values and only adding 10 additional paramterers
         if let additionalData {
@@ -311,6 +308,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     }
     
     /// A private helper function to handle the core enrollment logic for all signature factors.
+
     private func enroll(for signature: EnrollableSignature, keyLabel: String, publicKey: String, algorithm: SigningAlgorithm, enrollmentUri: URL) async throws {
         // 1. Create the parameters for the request body.
         let path = "urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Authenticator:\(signature.subType)Methods"
@@ -365,6 +363,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         }
     }
 
+
     public func finalize() async throws -> OnPremiseAuthenticator {
         // Ensure initializationInfo exists before proceeding.
         guard let initializationInfo = self.initializationInfo, let hostname = initializationInfo.registrationUri.host else {
@@ -393,8 +392,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
                                       createdDate: Date(),
                                       qrloginUri: initializationInfo.qrloginUri,
                                       ignoreSSLCertificate: self.registrationInfo.ignoreSSLCertificate,
-                                      clientId: self.registrationInfo.clientId,
-                                      tenantId: self.tenantId)
+                                      clientId: self.registrationInfo.clientId)
     }
     
     // MARK: - On-Premise Registration
