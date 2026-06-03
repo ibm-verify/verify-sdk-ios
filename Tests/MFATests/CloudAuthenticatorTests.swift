@@ -14,12 +14,20 @@ class CloudAuthenticatorTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
+
+        MockURLProtocol.urls.removeAll()
+
+        MockURLProtocol.startInterceptingEphemeralSessions()
         URLProtocol.registerClass(MockURLProtocol.self)
     }
 
     override func tearDown() {
-        super.tearDown()
+        MockURLProtocol.stopInterceptingEphemeralSessions()
+
         URLProtocol.unregisterClass(MockURLProtocol.self)
+        MockURLProtocol.urls.removeAll()
+
+        super.tearDown()
     }
 
     /// This test initiates, enrolls and finalizes an authenticator, then encodes to JSON.

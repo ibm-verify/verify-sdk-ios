@@ -12,6 +12,7 @@ import LocalAuthentication
 public typealias CloudRegistrationError = MFARegistrationError
 
 /// A mechanism for creating a multi-factor authenticator and associated factor enrollments for IBM Verify.
+@MainActor
 public class CloudRegistrationProvider: MFARegistrationDescriptor {
     public typealias Authenticator = CloudAuthenticator
     
@@ -144,7 +145,7 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
     }
     
     public var canEnrollOneTimePasscode: Bool {
-        false
+        initializationInfo?.metadata.authenticationMethods.totpMethod != nil
     }
        
     /// Initiates the multi-factor method enrollment.
@@ -249,6 +250,41 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
         // Delegate to shared logic
         try await performSignatureEnrollment(signature: signature, savePrivateKey: savePrivateKey)
     }
+    
+    // MARK: - One-time passcode Enrollment
+    
+    public func enrollOneTimePasscode() async throws -> OTPAuthenticator {
+        // 1. Ensure the totpMethod and its attributes exist
+        guard let totpMethod = self.initializationInfo?.metadata.authenticationMethods.totpMethod else {
+            throw OnPremiseRegistrationError.invalidState
+        }
+        
+        let attributes = totpMethod.attributes
+        
+        // 2. Resolve the service name and account name (matching your finalize() layout)
+        let hostname = self.initializationInfo?.metadata.registrationUri.host ?? "Unknown"
+        let serviceName = self.initializationInfo?.metadata.serviceName ?? hostname
+
+        // 3. Map the algorithm string to your SigningAlgorithm enum
+        // Based on your QR scanner code, it uses a custom 'from' initializer.
+        let algorithm = SigningAlgorithm(from: attributes.algorithm.lowercased()) ?? .sha256
+        
+        // 4. Construct the TOTPFactorInfo directly using the unwrapped attributes
+        let totpFactor = TOTPFactorInfo(
+            with: attributes.secret,
+            digits: attributes.digits,
+            algorithm: algorithm,
+            period: attributes.period
+        )
+        
+        // 5. Build and return the final OTPAuthenticator
+        return OTPAuthenticator(
+            with: serviceName,
+            accountName: self.accountName,
+            createdDate: Date(),
+            factor: totpFactor
+        )
+    }
 
     // MARK: - Private Methods
 
@@ -296,10 +332,6 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
         // Perform server enrollment
         try await enroll(for: signature, keyLabel: keyLabel, publicKey: publicKey.x509Representation, signedData: signedChallenge, algorithm: preferredAlgorithm, enrollmentUri: method.enrollmentUri
         )
-    }
-    
-    public func enrollOneTimePasscode() async throws -> OTPAuthenticator {
-        fatalError("enrollOneTimePasscode() has not been implemented yet.")
     }
     
     /// A private helper function to handle the core enrollment logic for all signature factors.
@@ -488,28 +520,88 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
     }
 
     // MARK: - Authentication Method Structures
+    
+    /// Represents a Time-Based One-Time Password (TOTP) authentication method configuration.
+    ///
+    /// This model handles registration payloads returned by the IBM Verify SDK endpoints. It encapsulates both general registration metadata and the underlying cryptographic specifications required to localise and spin up a functioning TOTP token generator.
+    public struct TotpMethod: Decodable {
+        
+        /// The unique identifier assigned to this specific TOTP instance.
+        public let id: String
+        
+        /// A boolean flag indicating whether the TOTP authentication mechanism is active.
+        public let enabled: Bool
+        
+        /// The absolute URI endpoint utilized to finalize or communicate changes regarding TOTP enrollment.
+        public let enrollmentUri: String
+        
+        /// The specific cryptographic and structural parameters required to drive the underlying TOTP generator.
+        ///
+        /// This structural model enforces strict non-optional validation because a `TotpMethod` configuration is considered invalid or un-enrollable if these cryptographic parameters are omitted by the server.
+        public let attributes: Attributes
+
+        /// Cryptographic parameters required by a TOTP engine to seed, cycle, and generate valid time-bound passcodes.
+        public struct Attributes: Decodable {
+            
+            /// The required string length of the final numeric passcode (e.g., `6` or `8` digits).
+            public let digits: Int
+            
+            /// The Base32-encoded shared secret string utilized as the root HMAC seed key.
+            public let secret: String
+            
+            /// The execution validity window duration for each generated passcode, measured in seconds (typically `30`).
+            public let period: Int
+            
+            /// The exact cryptographic hashing algorithm used to compute the HMAC value (e.g., `"SHA256"`, `"SHA1"`).
+            public let algorithm: String
+        }
+    }
 
     /// A custom structure to handle the dynamic keys of the `authenticationMethods` object.
 
     /// This implementation filters out the "totp" method during decoding.
     struct AuthenticationMethods: Decodable {
-        /// Using a dictionary to store the dynamic key-value pairs
+        /// Holds the dynamic signature methods (excluding totp)
         let signatureMethods: [String: SignatureMethod]
         
+        /// Only populated if "totp" contains an "attributes" payload
+        let totpMethod: TotpMethod?
+        
+        // Coding keys specifically for looking inside the totp object
+        private enum TotpKeys: String, CodingKey {
+            case attributes
+        }
+        
         init(from decoder: Decoder) throws {
-            // Create a keyed container to iterate through the authentication methods.
             let container = try decoder.container(keyedBy: UnknownCodingKeys.self)
-            var methods: [String: SignatureMethod] = [:]
             
+            // 1. Parse dynamic signature methods (ignoring totp)
+            var methods: [String: SignatureMethod] = [:]
             for key in container.allKeys {
-                // Explicitly skip any key with the value "totp" as requested.
                 if key.stringValue != "totp" {
                     let signatureMethod = try container.decode(SignatureMethod.self, forKey: key)
                     methods[key.stringValue] = signatureMethod
                 }
             }
-            
             self.signatureMethods = methods
+            
+            // 2. Conditionally parse the TOTP method
+            if let totpKey = UnknownCodingKeys(stringValue: "totp"), container.contains(totpKey) {
+                
+                // Peek inside the "totp" object using a nested container
+                let totpContainer = try container.nestedContainer(keyedBy: TotpKeys.self, forKey: totpKey)
+                
+                // If "attributes" exists, parse the full TotpMethod. Otherwise, it's nil.
+                if totpContainer.contains(.attributes) {
+                    self.totpMethod = try container.decode(TotpMethod.self, forKey: totpKey)
+                }
+                else {
+                    self.totpMethod = nil
+                }
+            }
+            else {
+                self.totpMethod = nil
+            }
         }
     }
 }

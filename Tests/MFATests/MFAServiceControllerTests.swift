@@ -12,10 +12,12 @@ class MFAServiceControllerTests: XCTestCase {
     override func setUp() {
         super.setUp()
         URLProtocol.registerClass(MockURLProtocol.self)
+        MockURLProtocol.startInterceptingEphemeralSessions()
     }
     
     override func tearDown() {
         super.tearDown()
+        MockURLProtocol.stopInterceptingEphemeralSessions()
         URLProtocol.unregisterClass(MockURLProtocol.self)
     }
     
@@ -70,9 +72,8 @@ class MFAServiceControllerTests: XCTestCase {
         XCTAssertNotNil(service)
         
         // Then
-        let nextTransaction = try! await service.nextTransaction(with: nil)
+        let nextTransaction = try? await service.nextTransaction(with: nil)
         XCTAssertNotNil(nextTransaction)
-        print(nextTransaction)
     }
     
     /// Test the service completeTransaction via protocol for a cloud authenticator.
@@ -244,8 +245,13 @@ class MFAServiceControllerTests: XCTestCase {
         // Where
         let controller = MFAServiceController(using: authenticator)
         let service = controller.initiate() as! CloudAuthenticatorService
-        let transaction = try! await service.nextTransaction()
-        let factor = controller.transactionFactor(for: transaction.current!)
+        let transaction = try? await service.nextTransaction()
+        
+        guard let currentTransaction = transaction?.current else {
+            return XCTFail("Expected transaction to have a current value")
+        }
+        
+        let factor = controller.transactionFactor(for: currentTransaction)
         
         guard case .biometric(let f)? = factor else {
             return XCTFail("Expected biometric factor")
@@ -265,14 +271,25 @@ class MFAServiceControllerTests: XCTestCase {
         // Where
         let controller = MFAServiceController(using: authenticator)
         let service = controller.initiate() as! CloudAuthenticatorService
-        let transaction = try! await service.nextTransaction()
-        let factor = controller.transactionFactor(for: transaction.current!)
         
-        guard case .userPresence(let f)? = factor else {
-            return XCTFail("Expected user presence factor")
+        do {
+            let transaction = try await service.nextTransaction()
+            
+            guard let currentTransaction = transaction.current else {
+                return XCTFail("Expected transaction to have a current value")
+            }
+            
+            let factor = controller.transactionFactor(for: currentTransaction)
+            
+            guard case .userPresence(let f)? = factor else {
+                return XCTFail("Expected user presence factor")
+            }
+            
+            XCTAssertEqual(f.id, "F0CF603F-AE9B-49CE-AD07-70F5777377DB")
         }
-        
-        XCTAssertEqual(f.id, "F0CF603F-AE9B-49CE-AD07-70F5777377DB")
+        catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
     
     func testTransactionFactorReturnsNilForUnknownID() async {
@@ -287,7 +304,12 @@ class MFAServiceControllerTests: XCTestCase {
         let controller = MFAServiceController(using: authenticator)
         let service = controller.initiate() as! CloudAuthenticatorService
         let transaction = try! await service.nextTransaction()
-        let factor = controller.transactionFactor(for: transaction.current!)
+        
+        guard let currentTransaction = transaction.current else {
+            return XCTFail("Expected transaction to have a current value")
+        }
+        
+        let factor = controller.transactionFactor(for: currentTransaction)
         
         XCTAssertNil(factor)
     }

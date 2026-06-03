@@ -244,7 +244,7 @@ class OAuthProviderTest: XCTestCase {
     func testAuthorizeCodeFlow() async throws {
         // Given
         let tokenUrl = URL(string: "\(urlBase)/token")!
-        MockURLProtocol.urls[tokenUrl] = MockResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, data: tokenJson.data(using: .utf8)!)
+        MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, data: tokenJson.data(using: .utf8)!)
         
         // Where
         let scopes = ["name", "age"]

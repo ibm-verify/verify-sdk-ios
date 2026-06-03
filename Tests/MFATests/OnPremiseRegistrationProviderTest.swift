@@ -24,12 +24,20 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
     
     override func setUp() {
         super.setUp()
+
+        MockURLProtocol.urls.removeAll()
+
+        MockURLProtocol.startInterceptingEphemeralSessions()
         URLProtocol.registerClass(MockURLProtocol.self)
     }
 
     override func tearDown() {
-        super.tearDown()
+        MockURLProtocol.stopInterceptingEphemeralSessions()
+
         URLProtocol.unregisterClass(MockURLProtocol.self)
+        MockURLProtocol.urls.removeAll()
+
+        super.tearDown()
     }
     
     /// Test the scan initiation of an on-premise provider .

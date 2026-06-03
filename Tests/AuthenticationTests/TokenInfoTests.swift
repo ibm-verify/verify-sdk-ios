@@ -168,7 +168,7 @@ class TokenInfoTests: XCTestCase {
     func testEncodeToken() async throws {
         // Given
         let tokenUrl = URL(string: urlBase)!
-        MockURLProtocol.urls[tokenUrl] = MockResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, data: tokenJson2.data(using: .utf8)!)
+        MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, data: tokenJson2.data(using: .utf8)!)
         
         // Where
         var token: TokenInfo?
@@ -197,7 +197,7 @@ class TokenInfoTests: XCTestCase {
     func testEncodeTokenDate() async throws {
         // Given
         let tokenUrl = URL(string: urlBase)!
-        MockURLProtocol.urls[tokenUrl] = MockResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, data: tokenJson2.data(using: .utf8)!)
+        MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, data: tokenJson2.data(using: .utf8)!)
         
         // Where
         var token: TokenInfo?

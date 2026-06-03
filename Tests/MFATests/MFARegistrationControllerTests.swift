@@ -34,10 +34,12 @@ class MFARegistrationControllerTests: XCTestCase {
     override func setUp() {
         super.setUp()
         URLProtocol.registerClass(MockURLProtocol.self)
+        MockURLProtocol.startInterceptingEphemeralSessions()
     }
 
     override func tearDown() {
         super.tearDown()
+        MockURLProtocol.stopInterceptingEphemeralSessions()
         URLProtocol.unregisterClass(MockURLProtocol.self)
     }
 

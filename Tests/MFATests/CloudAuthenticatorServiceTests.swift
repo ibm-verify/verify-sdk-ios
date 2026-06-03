@@ -14,12 +14,20 @@ class CloudAuthenticatorServiceTest: XCTestCase {
     
     override func setUp() {
         super.setUp()
+
+        MockURLProtocol.urls.removeAll()
+
+        MockURLProtocol.startInterceptingEphemeralSessions()
         URLProtocol.registerClass(MockURLProtocol.self)
     }
 
     override func tearDown() {
-        super.tearDown()
+        MockURLProtocol.stopInterceptingEphemeralSessions()
+
         URLProtocol.unregisterClass(MockURLProtocol.self)
+        MockURLProtocol.urls.removeAll()
+
+        super.tearDown()
     }
     
     /// Attempts to refresh the access token for an authenticator with an invalid pinned certificate.
@@ -52,7 +60,7 @@ class CloudAuthenticatorServiceTest: XCTestCase {
         
         // Where
         let service = CloudAuthenticatorService(with: "abc123", refreshUri: registrationUrl, transactionUri: URL(string: "\(urlBase)/v1.0/")!, authenticatorId: UUID().uuidString)
-        let token = try? await service.refreshToken(using: "def456")
+        let token = try? await service.refreshToken(using: "def456", pushToken: "zxdrt")
         
         
         // Then
@@ -69,7 +77,7 @@ class CloudAuthenticatorServiceTest: XCTestCase {
         
         // Where
         let service = CloudAuthenticatorService(with: "abc123", refreshUri: registrationUrl, transactionUri: URL(string: "\(urlBase)/v1.0/")!, authenticatorId: UUID().uuidString)
-        let token = try? await service.refreshToken(using: "def456", accountName: "Test", pushToken: "xyz098")
+        let token = try? await service.refreshToken(using: "def456", accountName: "Test")
         
         let accessToken = await service.accessToken
         

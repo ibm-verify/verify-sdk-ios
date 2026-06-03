@@ -12,6 +12,7 @@ import LocalAuthentication
 public typealias OnPremiseRegistrationError = MFARegistrationError
 
 /// A mechanism for creating a multi-factor authenticator and associated factor enrollments for IBM Verify Access.
+@MainActor
 public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     public typealias Authenticator = OnPremiseAuthenticator
     
@@ -365,34 +366,55 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
 
     public func finalize() async throws -> OnPremiseAuthenticator {
-        // Ensure initializationInfo exists before proceeding.
-        guard let initializationInfo = self.initializationInfo, let hostname = initializationInfo.registrationUri.host else {
+        // 1. Ensure initializationInfo and hostname exist before proceeding
+        guard let initializationInfo = self.initializationInfo,
+              let hostname = initializationInfo.registrationUri.host else {
             throw OnPremiseRegistrationError.invalidState
         }
         
-        // Safely unwrap the optional token and its refresh token.
-        guard let token = self.token else {
+        // 2. Safely unwrap the optional token and its refresh token
+        guard let token = self.token,
+              let refreshToken = token.refreshToken else {
             throw MFAServiceError.tokenNotFound
         }
         
-        // If accountName is empty, see if we can get it from the token, otherwise "Not available"
-        if self.accountName.isEmpty {
-            self.accountName = token.additionalData["display_name"] as? String ?? "Not available"
-        }
+        // 3. Determine account name locally to avoid mid-async mutation side-effects
+        let resolvedAccountName = self.accountName.isEmpty
+            ? (token.additionalData["display_name"] as? String ?? "Not available")
+            : self.accountName
         
-        return OnPremiseAuthenticator(refreshUri: initializationInfo.tokenUri,
-                                      transactionUri: initializationInfo.transactionUri,
-                                      theme: initializationInfo.metadata.theme ?? [:] ,
-                                      token: token,
-                                      id: self.authenticatorId,
-                                      serviceName: initializationInfo.metadata.serviceName ?? hostname,
-                                      accountName: self.accountName,
-                                      userPresence: self.userPresence,
-                                      biometric: self.biometric,
-                                      createdDate: Date(),
-                                      qrloginUri: initializationInfo.qrloginUri,
-                                      ignoreSSLCertificate: self.registrationInfo.ignoreSSLCertificate,
-                                      clientId: self.registrationInfo.clientId)
+        // 4. Construct the authentication service to refresh the access token (updates tenant_id)
+        let service = OnPremiseAuthenticatorService(
+            with: token.accessToken,
+            refreshUri: initializationInfo.tokenUri,
+            transactionUri: initializationInfo.transactionUri,
+            clientId: self.registrationInfo.clientId,
+            authenticatorId: self.authenticatorId
+        )
+        
+        let newToken = try await service.refreshToken(
+            using: refreshToken,
+            accountName: resolvedAccountName,
+            pushToken: self.pushToken,
+            additionalData: nil
+        )
+        
+        // 5. Build and return the final authenticator
+        return OnPremiseAuthenticator(
+            refreshUri: initializationInfo.tokenUri,
+            transactionUri: initializationInfo.transactionUri,
+            theme: initializationInfo.metadata.theme ?? [:],
+            token: newToken,
+            id: self.authenticatorId,
+            serviceName: initializationInfo.metadata.serviceName ?? hostname,
+            accountName: resolvedAccountName,
+            userPresence: self.userPresence,
+            biometric: self.biometric,
+            createdDate: Date(),
+            qrloginUri: initializationInfo.qrloginUri,
+            ignoreSSLCertificate: self.registrationInfo.ignoreSSLCertificate,
+            clientId: self.registrationInfo.clientId
+        )
     }
     
     // MARK: - On-Premise Registration
