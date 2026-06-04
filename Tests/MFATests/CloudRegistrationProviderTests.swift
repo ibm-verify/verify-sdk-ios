@@ -40,13 +40,22 @@ class CloudRegistrationProviderTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
+
+        MockURLProtocol.urls.removeAll()
+
+        MockURLProtocol.startInterceptingEphemeralSessions()
         URLProtocol.registerClass(MockURLProtocol.self)
     }
 
     override func tearDown() {
-        super.tearDown()
+        MockURLProtocol.stopInterceptingEphemeralSessions()
+
         URLProtocol.unregisterClass(MockURLProtocol.self)
+        MockURLProtocol.urls.removeAll()
+
+        super.tearDown()
     }
+    
     
     /// Test the initiation of a cloud provider.
     func testInAppInitializeAuthenticator() async throws {
@@ -192,7 +201,7 @@ class CloudRegistrationProviderTests: XCTestCase {
         }
     }
     
-    /// Test the scan and create an insance of the on-premise registration provider, then detemine which signatures are enabled for enrollment.
+    /// Test the scan and create an instance of the cloud registration provider, then determine which enrollment methods are available.
     @MainActor
     func testAvailableEnrolments() async throws {
         // Given
@@ -206,14 +215,17 @@ class CloudRegistrationProviderTests: XCTestCase {
         XCTAssertNotNil(controller)
         
         // Then
-        let provider = try! await controller.initiate(with: "Cloud account", pushToken: "abc123")
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
-        // Then
-        XCTAssertEqual(provider.canEnrollBiometric, true)
+        // Then - Verify biometric enrollment is available
+        XCTAssertTrue(provider?.canEnrollBiometric ?? false, "Biometric enrollment should be available")
         
-        // Then
-        XCTAssertEqual(provider.canEnrollUserPresence, false)
+        // Then - Verify user presence enrollment is not available
+        XCTAssertFalse(provider?.canEnrollUserPresence ?? true, "User presence enrollment should not be available")
+        
+        // Then - Verify TOTP enrollment is available (cloud.initiateTOTP has attributes)
+        XCTAssertTrue(provider?.canEnrollOneTimePasscode ?? false, "TOTP enrollment should be available")
     }
     
     /// Test the scan and create an insance of the cloud registration provider, then enroll user presence.
@@ -439,7 +451,7 @@ class CloudRegistrationProviderTests: XCTestCase {
             try await provider.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID Required")
         }
         catch let error {
-            XCTAssertTrue(error is URLSessionError)
+            XCTAssertTrue(error is MFARegistrationError)
         }
     }
     
@@ -544,5 +556,216 @@ class CloudRegistrationProviderTests: XCTestCase {
             // Verify that our error is equal to what we expect
             XCTAssertEqual(error as? URLSessionError, .invalidResponse(statusCode: 404, description: ""))
         }
+    }
+    
+    // MARK: - TOTP Tests
+    
+    /// Test that TOTP enrollment is available when attributes are present in the metadata.
+    @MainActor
+    func testCanEnrollOneTimePasscode() async throws {
+        // Given
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateTOTP")
+        
+        // Where
+        let controller = MFARegistrationController(json: scanResult)
+         
+        // Then
+        XCTAssertNotNil(controller)
+        
+        // Then
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
+        XCTAssertNotNil(provider)
+        
+        // Then
+        let result = provider?.canEnrollOneTimePasscode
+        XCTAssertTrue(result ?? false)
+    }
+    
+    /// Test that TOTP enrollment is not available when attributes are missing from the metadata.
+    @MainActor
+    func testCanNotEnrollOneTimePasscode() async throws {
+        // Given
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateNoTOTP")
+        
+        // Where
+        let controller = MFARegistrationController(json: scanResult)
+         
+        // Then
+        XCTAssertNotNil(controller)
+        
+        // Then
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
+        XCTAssertNotNil(provider)
+        
+        // Then
+        let result = provider?.canEnrollOneTimePasscode
+        XCTAssertFalse(result ?? true)
+    }
+    
+    /// Test successful TOTP enrollment with valid attributes.
+    func testEnrollOneTimePasscodeSuccess() async throws {
+        // Given
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateTOTP")
+        
+        // Where
+        let controller = MFARegistrationController(json: scanResult)
+         
+        // Then
+        XCTAssertNotNil(controller)
+        
+        // Then
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
+        XCTAssertNotNil(provider)
+        
+        // Then
+        do {
+            let authenticator = try await provider?.enrollOneTimePasscode()
+            XCTAssertNotNil(authenticator)
+            XCTAssertEqual(authenticator?.serviceName, "IBM Verify SDK Tenant")
+            XCTAssertEqual(authenticator?.accountName, "Cloud account")
+            
+            // Verify TOTP factor attributes
+            if let totpFactor = authenticator?.totp {
+                XCTAssertEqual(totpFactor.digits, 6)
+                XCTAssertEqual(totpFactor.period, 30)
+                XCTAssertEqual(totpFactor.algorithm, .sha256)
+            } else {
+                XCTFail("Expected TOTPFactorInfo")
+            }
+        }
+        catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+    
+    /// Test TOTP enrollment fails when initialization info is missing.
+    @MainActor
+    func testEnrollOneTimePasscodeFailsWhenInitializationInfoIsMissing() async throws {
+        // Given
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateTOTP")
+        
+        // Where
+        let controller = MFARegistrationController(json: scanResult)
+         
+        // Then
+        XCTAssertNotNil(controller)
+        
+        // Then
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123") as? CloudRegistrationProvider
+        XCTAssertNotNil(provider)
+        
+        // Clear initialization info to simulate missing state
+        provider?.initializationInfo = nil
+        
+        // Then
+        do {
+            let _ = try await provider?.enrollOneTimePasscode()
+            XCTFail("Expected error to be thrown")
+        }
+        catch let error as MFARegistrationError {
+            switch error {
+            case .invalidState:
+                XCTAssertNotNil(error)
+            default:
+                XCTFail("Unexpected error type: \(error)")
+            }
+        }
+        catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+    
+    /// Test TOTP enrollment fails when TOTP method is not available.
+    func testEnrollOneTimePasscodeFailsWhenTotpMethodNotAvailable() async throws {
+        // Given
+        let registrationUrl = URL(string: "\(urlBase)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiateNoTOTP")
+        
+        // Where
+        let controller = MFARegistrationController(json: scanResult)
+         
+        // Then
+        XCTAssertNotNil(controller)
+        
+        // Then
+        let provider = try? await controller.initiate(with: "Cloud account", pushToken: "abc123")
+        XCTAssertNotNil(provider)
+        
+        // Then
+        do {
+            let _ = try await provider?.enrollOneTimePasscode()
+            XCTFail("Expected error to be thrown")
+        }
+        catch let error as MFARegistrationError {
+            switch error {
+            case .invalidState:
+                XCTAssertNotNil(error)
+            default:
+                XCTFail("Unexpected error type: \(error)")
+            }
+        }
+        catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+    
+    /// Test TotpMethod decoding with valid attributes.
+    func testTotpMethodDecoding() throws {
+        // Given
+        let json = """
+        {
+            "id": "f0cf603f-ae9b-49ce-ad07-70f5777377db",
+            "enabled": true,
+            "enrollmentUri": "https://sdk.verify.ibm.com/v1.0/authnmethods/totp",
+            "attributes": {
+                "digits": 8,
+                "secret": "TESTSECRET123456",
+                "period": 60,
+                "algorithm": "SHA512"
+            }
+        }
+        """
+        
+        // Where
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        let totpMethod = try decoder.decode(CloudRegistrationProvider.TotpMethod.self, from: data)
+        
+        // Then
+        XCTAssertEqual(totpMethod.id, "f0cf603f-ae9b-49ce-ad07-70f5777377db")
+        XCTAssertTrue(totpMethod.enabled)
+        XCTAssertEqual(totpMethod.enrollmentUri, "https://sdk.verify.ibm.com/v1.0/authnmethods/totp")
+        XCTAssertEqual(totpMethod.attributes.digits, 8)
+        XCTAssertEqual(totpMethod.attributes.secret, "TESTSECRET123456")
+        XCTAssertEqual(totpMethod.attributes.period, 60)
+        XCTAssertEqual(totpMethod.attributes.algorithm, "SHA512")
+    }
+    
+    /// Test TotpMethod.Attributes decoding.
+    func testTotpMethodAttributesDecoding() throws {
+        // Given
+        let json = """
+        {
+            "digits": 6,
+            "secret": "HCVUT426LRSLLP4M",
+            "period": 30,
+            "algorithm": "SHA256"
+        }
+        """
+        
+        // Where
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        let attributes = try decoder.decode(CloudRegistrationProvider.TotpMethod.Attributes.self, from: data)
+        
+        // Then
+        XCTAssertEqual(attributes.digits, 6)
+        XCTAssertEqual(attributes.secret, "HCVUT426LRSLLP4M")
+        XCTAssertEqual(attributes.period, 30)
+        XCTAssertEqual(attributes.algorithm, "SHA256")
     }
 }

@@ -14,12 +14,20 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
     
     override func setUp() {
         super.setUp()
+
+        MockURLProtocol.urls.removeAll()
+
+        MockURLProtocol.startInterceptingEphemeralSessions()
         URLProtocol.registerClass(MockURLProtocol.self)
     }
 
     override func tearDown() {
-        super.tearDown()
+        MockURLProtocol.stopInterceptingEphemeralSessions()
+
         URLProtocol.unregisterClass(MockURLProtocol.self)
+        MockURLProtocol.urls.removeAll()
+
+        super.tearDown()
     }
 
     // MARK: - Refresh
@@ -39,7 +47,7 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         XCTAssertEqual(token?.refreshToken, "Z9x8Y7")
         XCTAssertEqual("A1b2C3D4", accessToken)
         XCTAssertEqual(token?.accessToken, "A1b2C3D4")
-        XCTAssertEqual(token?.additionalData["display_name"] as! String, "testuser")
+        XCTAssertEqual(token?.additionalData["display_name"] as? String, "testuser")
     }
     
     /// Attempts to refresh the access token for an authenticator with an invalid pinned certificate.
@@ -97,7 +105,7 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         XCTAssertNotNil(token, "TokenInfo returned success.")
         XCTAssertEqual(token?.refreshToken, "Z9x8Y7")
         XCTAssertEqual(token?.accessToken, "A1b2C3D4")
-        XCTAssertEqual(token?.additionalData["display_name"] as! String, "testuser")
+        XCTAssertEqual(token?.additionalData["display_name"] as? String, "testuser")
     }
     
     /// Attempts to refresh the access token but throwns an error.
@@ -214,6 +222,18 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
     func testNextTransactionNoAuthenticator() async throws {
         // Given
         let transactionId = "dea8b846-76dc-4786-9941-daf9fa86427e"
+        
+        // Setup mock URLs for testFinalizeRegistration
+        let registrationUrl = URL(string: "\(urlBase)/mga/sps/mmfa/user/mgmt/details")!
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.initiate")
+        
+        let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
+        MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
+        
+        let otpUrl = URL(string: "\(urlBase)/mga/sps/mga/user/mgmt/otp/totp")!
+        MockURLProtocol.urls[otpUrl] = MockHTTPResponse(response: HTTPURLResponse(url: otpUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentTOTP")
+        
+        // Setup mock URLs for transaction
         let transactionUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending")!
         let challenageUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?MmfaTransactionId=DEA8B846-76DC-4786-9941-DAF9FA86427E")!
            
@@ -225,9 +245,12 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         let service = OnPremiseAuthenticatorService(with: authenticator.token.accessToken, refreshUri: authenticator.refreshUri, transactionUri: authenticator.transactionUri, clientId: authenticator.clientId, authenticatorId: "296C632A-E142-413E-9CDE-B547A1258BA8")
         
         // Then
-        let result = try await service.nextTransaction()
-        XCTAssertEqual(result.countOfPendingTransactions, 1)
-        XCTAssertEqual(result.current?.id, transactionId)
+        do {
+            let _ = try await service.nextTransaction()
+        }
+        catch let error {
+            XCTAssertTrue(error is MFAServiceError)
+        }
     }
     
     

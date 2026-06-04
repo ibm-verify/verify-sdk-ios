@@ -30,8 +30,8 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
     nonisolated public let refreshUri: URL
     nonisolated public let transactionUri: URL
     
-    /// An object that coordinates a group of related, network data transfer tasks.
-    private let urlSession: URLSession
+    @_documentation(visibility: private)
+    public let _urlSession: URLSession
     
     /// A unique identifier to link a mobile application to the cloud service.
     private let authenticatorId: String
@@ -52,11 +52,11 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
         if let certificateTrust = certificateTrust {
             // Set the URLSession for certificate pinning with ephemeral configuration
             // to prevent cookie persistence across operations.
-            self.urlSession = URLSession(configuration: .ephemeral, delegate: certificateTrust, delegateQueue: nil)
+            self._urlSession = URLSession(configuration: .ephemeral, delegate: certificateTrust, delegateQueue: nil)
         }
         else {
             // Use ephemeral configuration to prevent cookie persistence.
-            self.urlSession = URLSession(configuration: .ephemeral)
+            self._urlSession = URLSession(configuration: .ephemeral)
         }
     }
     
@@ -120,7 +120,7 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
         
         // Construct and perform the network request.
         let resource = HTTPResource<TokenInfo>(json: .post, url: refreshUri, body: body)
-        let result = try await self.urlSession.dataTask(for: resource)
+        let result = try await self._urlSession.dataTask(for: resource)
         
         // Update the internal accessToken and return the result.
         self.accessToken = result.accessToken
@@ -173,7 +173,7 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
         let resource = HTTPResource<NextTransactionInfo>(.get, url: url, accept: .json, headers: headers, parse: parsePendingTransaction)
         
         // Perform the request.
-        let result = try await self.urlSession.dataTask(for: resource)
+        let result = try await self._urlSession.dataTask(for: resource)
         self.currentPendingTransaction = result.current
         
         return result
@@ -215,7 +215,7 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
         let resource = HTTPResource<Void>(.post, url: pendingTransaction.postbackUri, accept: .json, contentType: .json, body: body, headers: headers)
         
         // Perfom the request.
-        return try await self.urlSession.dataTask(for: resource)
+        return try await self._urlSession.dataTask(for: resource)
     }
 }
 

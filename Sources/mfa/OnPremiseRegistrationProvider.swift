@@ -12,6 +12,7 @@ import LocalAuthentication
 public typealias OnPremiseRegistrationError = MFARegistrationError
 
 /// A mechanism for creating a multi-factor authenticator and associated factor enrollments for IBM Verify Access.
+@MainActor
 public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     public typealias Authenticator = OnPremiseAuthenticator
     
@@ -91,6 +92,10 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     public var canEnrollUserPresence: Bool {
         initializationInfo?.signatureMethods["user_presence"]?.enabled ?? false
     }
+    
+    public var canEnrollOneTimePasscode: Bool {
+        initializationInfo?.totpUri != nil
+    }
        
     /// Initiates the multi-factor method enrollment.
     /// - Parameters:
@@ -157,6 +162,10 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     // MARK: - User Presence Enrollment
 
     public func enrollUserPresence(savePrivateKey: (SecKeyAddType) throws -> String) async throws {
+        guard canEnrollUserPresence else {
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: "User presence signature method not provided in metadata configuration.")
+        }
+        
         let signature = (methodKey: "user_presence", subType: "userPresence")
         try await performSignatureEnrollment(signature: signature, savePrivateKey: savePrivateKey)
     }
@@ -164,6 +173,10 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     // MARK: - Biometry Enrollment
 
     public func enrollBiometric(savePrivateKey: (SecKeyAddType) throws -> String, context: LAContext? = nil, reason: String?) async throws {
+        guard canEnrollBiometric else {
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: "Biometric signature method not provided in metadata configuration.")
+        }
+        
         let context = context ?? LAContext()
         let policy: LAPolicy = .deviceOwnerAuthenticationWithBiometrics
         var error: NSError?
@@ -199,6 +212,63 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         try await performSignatureEnrollment(signature: signature, savePrivateKey: savePrivateKey)
     }
     
+    // MARK: - One-time Passcode Enrollment
+    
+    public func enrollOneTimePasscode() async throws -> OTPAuthenticator {
+        guard canEnrollOneTimePasscode else {
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: "One-time passcode not provided in metadata configuration.")
+        }
+        
+        guard let initializationInfo = self.initializationInfo,
+              let totpUri = initializationInfo.totpUri else {
+            throw OnPremiseRegistrationError.invalidState
+        }
+        
+        guard let token = self.token else {
+            throw MFAServiceError.tokenNotFound
+        }
+         
+        let headers = ["Authorization": token.authorizationHeader]
+
+        // Define a simple response structure to extract secretKeyUrl
+        struct TOTPResponse: Decodable {
+            let secretKeyUrl: String
+            let message: String?  // Optional error message field
+        }
+
+        // Custom resource with error-aware parsing
+        let resource = HTTPResource<TOTPResponse>(.get, url: totpUri, accept: .json, headers: headers) { data, response in
+            guard let data = data, !data.isEmpty else {
+                return Result.failure(OnPremiseRegistrationError.dataInitializationFailed)
+            }
+            
+            do {
+                let result = try JSONDecoder().decode(TOTPResponse.self, from: data)
+                
+                // Check if response contains an error message
+                if let message = result.message {
+                    return Result.failure(OnPremiseRegistrationError.enrollmentFailed(reason: message))
+                }
+                
+                return Result.success(result)
+            }
+            catch {
+                return Result.failure(OnPremiseRegistrationError.dataDecodingFailed(reason: error.localizedDescription))
+            }
+        }
+        
+        let response = try await self.urlSession.dataTask(for: resource)
+        
+        // Parse the otpauth:// URI using OTPAuthenticator's built-in parser
+        guard let authenticator = OTPAuthenticator(fromQRScan: response.secretKeyUrl) else {
+            throw OnPremiseRegistrationError.dataDecodingFailed(
+                reason: String(localized: "Failed to parse OTP URI from server response.", bundle: .module)
+            )
+        }
+        
+        return authenticator
+    }
+    
     // MARK: - Private Methods
 
     private func performSignatureEnrollment(signature: EnrollableSignature, savePrivateKey: (SecKeyAddType) throws -> String) async throws {
@@ -206,28 +276,25 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             throw OnPremiseRegistrationError.invalidState
         }
 
+        // Cache the title-case string to avoid redundant allocations in error handlers
+        let methodTitle = signature.subType.camelToTitleCase
+        
         // Validate signature method exists
         guard let method = initializationInfo.signatureMethods[signature.methodKey] else {
-            throw OnPremiseRegistrationError.invalidRegistrationData(reason: String(localized: "Signature method '\(signature.subType.camelToTitleCase)' not found.", bundle: .module))
+            throw OnPremiseRegistrationError.invalidRegistrationData(reason: String(localized: "Signature method '\(methodTitle)' not found.", bundle: .module))
         }
 
         guard method.enabled else {
-            throw OnPremiseRegistrationError.signatureMethodNotEnabled(
-                type: signature.subType.camelToTitleCase
-            )
+            throw OnPremiseRegistrationError.signatureMethodNotEnabled(type: methodTitle)
         }
 
         guard let attributes = method.attributes else {
-            throw OnPremiseRegistrationError.invalidRegistrationData(
-                reason: "Signature method '\(signature.subType.camelToTitleCase)' has no attributes."
-            )
+            throw OnPremiseRegistrationError.invalidRegistrationData(reason: "Signature method '\(methodTitle)' has no attributes.")
         }
 
         // Resolve algorithm
         guard let preferredAlgorithm = SigningAlgorithm(from: attributes.algorithm) else {
-            throw CloudRegistrationError.invalidAlgorithm(
-                reason: "The resolved algorithm '\(attributes.algorithm)' is not valid."
-            )
+            throw CloudRegistrationError.invalidAlgorithm(reason: "The resolved algorithm '\(attributes.algorithm)' is not valid.")
         }
 
         // Generate key pair
@@ -299,34 +366,55 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
 
     public func finalize() async throws -> OnPremiseAuthenticator {
-        // Ensure initializationInfo exists before proceeding.
-        guard let initializationInfo = self.initializationInfo, let hostname = initializationInfo.registrationUri.host else {
+        // 1. Ensure initializationInfo and hostname exist before proceeding
+        guard let initializationInfo = self.initializationInfo,
+              let hostname = initializationInfo.registrationUri.host else {
             throw OnPremiseRegistrationError.invalidState
         }
         
-        // Safely unwrap the optional token and its refresh token.
-        guard let token = self.token else {
+        // 2. Safely unwrap the optional token and its refresh token
+        guard let token = self.token,
+              let refreshToken = token.refreshToken else {
             throw MFAServiceError.tokenNotFound
         }
         
-        // If accountName is empty, see if we can get it from the token, otherwise "Not available"
-        if self.accountName.isEmpty {
-            self.accountName = token.additionalData["display_name"] as? String ?? "Not available"
-        }
+        // 3. Determine account name locally to avoid mid-async mutation side-effects
+        let resolvedAccountName = self.accountName.isEmpty
+            ? (token.additionalData["display_name"] as? String ?? "Not available")
+            : self.accountName
         
-        return OnPremiseAuthenticator(refreshUri: initializationInfo.tokenUri,
-                                      transactionUri: initializationInfo.transactionUri,
-                                      theme: initializationInfo.metadata.theme ?? [:] ,
-                                      token: token,
-                                      id: self.authenticatorId,
-                                      serviceName: initializationInfo.metadata.serviceName ?? hostname,
-                                      accountName: self.accountName,
-                                      userPresence: self.userPresence,
-                                      biometric: self.biometric,
-                                      createdDate: Date(),
-                                      qrloginUri: initializationInfo.qrloginUri,
-                                      ignoreSSLCertificate: self.registrationInfo.ignoreSSLCertificate,
-                                      clientId: self.registrationInfo.clientId)
+        // 4. Construct the authentication service to refresh the access token (updates tenant_id)
+        let service = OnPremiseAuthenticatorService(
+            with: token.accessToken,
+            refreshUri: initializationInfo.tokenUri,
+            transactionUri: initializationInfo.transactionUri,
+            clientId: self.registrationInfo.clientId,
+            authenticatorId: self.authenticatorId
+        )
+        
+        let newToken = try await service.refreshToken(
+            using: refreshToken,
+            accountName: resolvedAccountName,
+            pushToken: self.pushToken,
+            additionalData: nil
+        )
+        
+        // 5. Build and return the final authenticator
+        return OnPremiseAuthenticator(
+            refreshUri: initializationInfo.tokenUri,
+            transactionUri: initializationInfo.transactionUri,
+            theme: initializationInfo.metadata.theme ?? [:],
+            token: newToken,
+            id: self.authenticatorId,
+            serviceName: initializationInfo.metadata.serviceName ?? hostname,
+            accountName: resolvedAccountName,
+            userPresence: self.userPresence,
+            biometric: self.biometric,
+            createdDate: Date(),
+            qrloginUri: initializationInfo.qrloginUri,
+            ignoreSSLCertificate: self.registrationInfo.ignoreSSLCertificate,
+            clientId: self.registrationInfo.clientId
+        )
     }
     
     // MARK: - On-Premise Registration
@@ -336,7 +424,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         let code: String
         
         /// A raw options string containing configuration flags (e.g., "ignoreSslCerts=false").
-        let options: String
+        let options: String?
         
         /// A URL pointing to user details.
         let uri: URL
@@ -361,23 +449,28 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         /// When this flag is `true` a  [URLSessionDelegate](https://developer.apple.com/documentation/foundation/urlsessiondelegate/1409308-urlsession) should be assigned to the `URLSession` to validate authentication challenges. For example certificate pinning.
         /// - Returns: `true` if `ignoreSslCerts=true` is present in the options string; otherwise `false`.
         var ignoreSSLCertificate: Bool {
+            // Safely unwrap the optional string. If it's missing, default to false.
+            guard let optionsString = options else {
+                return false
+            }
+            
             // Split the options string into key-value pairs using commas
-            let pairs = options.split(separator: ",").map { $0.split(separator: "=") }
-
+            let pairs = optionsString.split(separator: ",").map { $0.split(separator: "=") }
+            
             // Iterate through each key-value pair
             for pair in pairs {
                 // Ensure the pair contains exactly two elements: key and value
                 if pair.count == 2 {
                     let key = pair[0].trimmingCharacters(in: .whitespaces)
                     let value = pair[1].trimmingCharacters(in: .whitespaces).lowercased()
-
+                    
                     // Check if the key is "ignoreSslCerts" and return true if the value is "true"
                     if key == "ignoreSslCerts" {
                         return value == "true"
                     }
                 }
             }
-
+            
             // Default to false if the key is not found or improperly formatted
             return false
         }
@@ -398,6 +491,9 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         
         /// Endpoint for enrollment operations.
         let registrationUri: URL
+        
+        /// The time based one-time passcode endpoint.
+        let totpUri: URL?
         
         /// The QR code login location endpoint URL
         /// - remark: This value is retrieved from `qrlogin_endpoint`.  If the value is missing, an attempt is made to retrieved the `qrlogin_endpoint` value from the on-premise metadata.json file.
@@ -440,6 +536,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             case transactionUri = "authntrxn_endpoint"
             case metadata
             case discoveryMechanisms = "discovery_mechanisms"
+            case totpUri = "totp_shared_secret_endpoint"
             case registrationUri = "enrollment_endpoint"
             case qrloginUri = "qrlogin_endpoint"
             case version

@@ -16,12 +16,34 @@ struct MockHTTPResponse {
 /// A  class that handles the loading of protocol-specific URL data.
 class MockURLProtocol: URLProtocol {
     static var urls = [URL: MockHTTPResponse]()
+    
+    /// Swizzles URLSessionConfiguration to automatically inject MockURLProtocol into ephemeral configurations
+    static func startInterceptingEphemeralSessions() {
+        guard let originalMethod = class_getClassMethod(URLSessionConfiguration.self, #selector(getter: URLSessionConfiguration.ephemeral)),
+              let swizzledMethod = class_getClassMethod(URLSessionConfiguration.self, #selector(getter: URLSessionConfiguration.mock_ephemeral)) else {
+            return
+        }
+        method_exchangeImplementations(originalMethod, swizzledMethod)
+    }
+    
+    /// Restores original URLSessionConfiguration.ephemeral behavior
+    static func stopInterceptingEphemeralSessions() {
+        // Swizzling again restores the original
+        guard let originalMethod = class_getClassMethod(URLSessionConfiguration.self, #selector(getter: URLSessionConfiguration.ephemeral)),
+              let swizzledMethod = class_getClassMethod(URLSessionConfiguration.self, #selector(getter: URLSessionConfiguration.mock_ephemeral)) else {
+            return
+        }
+        method_exchangeImplementations(originalMethod, swizzledMethod)
+    }
 
     /// This method determines whether this protocol can handle the given request.
     /// - parameter request: A request to make canonical.
     override class func canInit(with request: URLRequest) -> Bool {
         guard let url = request.url else { return false }
-        return urls.keys.contains(url)
+
+        return urls.keys.contains {
+            $0.absoluteString == url.absoluteString
+        }
     }
 
     /// This method returns a canonical version of the given request.
@@ -58,5 +80,23 @@ class MockURLProtocol: URLProtocol {
 
     /// Stops protocol-specific loading of a request.
     override func stopLoading() {
+    }
+}
+
+// MARK: - URLSessionConfiguration Extension for Mocking
+
+extension URLSessionConfiguration {
+
+    @objc class var mock_ephemeral: URLSessionConfiguration {
+
+        // After swizzling this actually calls the ORIGINAL
+        // URLSessionConfiguration.ephemeral implementation.
+        let config = self.mock_ephemeral
+
+        config.protocolClasses = [MockURLProtocol.self]
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+
+        return config
     }
 }

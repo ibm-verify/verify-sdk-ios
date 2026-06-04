@@ -118,6 +118,11 @@ public protocol MFARegistrationDescriptor {
         get
     }
     
+    /// Indicates if time based one-time passcode (TOTP) is available for enrollment.
+    var canEnrollOneTimePasscode: Bool {
+        get
+    }
+    
     /// Creates the instance with JSON value.
     /// - Parameters:
     ///   - value: The JSON value typically obtained from a QR code.
@@ -196,6 +201,15 @@ public protocol MFARegistrationDescriptor {
     ///   - reason: A localized explanation shown in the biometric prompt.
     /// - Throws: Errors related to biometric evaluation, key generation, or enrollment.
     func enrollBiometric(savePrivateKey: (SecKeyAddType) throws -> String, context: LAContext?, reason: String?) async throws
+    
+    /// Enrolls a One-Time Passcode (OTP) authenticator using the service metadata configuration.
+    ///
+    /// This asynchronous function references the provided service configuration metadata to locate the designated OTP shared secret endpoint (such as `totp_shared_secret_endpoint`), performs the enrollment handshake with the server, and returns a usable authenticator instance.
+    ///
+    /// - Throws: An error if the network request fails, the payload is invalid,
+    ///           or if saving to the secure storage layer encounters an issue.
+    /// - Returns: A fully configured `OTPAuthenticator` instance ready to generate codes.
+    func enrollOneTimePasscode() async throws -> OTPAuthenticator
     
     /// Completes the enrollment operations.
     ///
