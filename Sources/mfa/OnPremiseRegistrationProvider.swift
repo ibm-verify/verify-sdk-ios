@@ -389,7 +389,8 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             refreshUri: initializationInfo.tokenUri,
             transactionUri: initializationInfo.transactionUri,
             clientId: self.registrationInfo.clientId,
-            authenticatorId: self.authenticatorId
+            authenticatorId: self.authenticatorId,
+            certificateTrust: self.urlSession.delegate
         )
         
         let newToken = try await service.refreshToken(
