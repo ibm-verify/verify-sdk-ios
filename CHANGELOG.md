@@ -1,4 +1,46 @@
 Note: This is in reverse chronological order, so newer entries are added to the top.
+# v3.1.4
+4 June 2026
+
+### IBM Verify MFA SDK for iOS
+* Rosolves an issue during `OnPremiseRegistrationProvider.finalize()` with self-signed certificate enabled
+
+### IBM Verify Core SDK for iOS
+* Increment version
+
+### IBM Verify Authentication SDK for iOS
+* Increment version
+* Use ephemeral sessions for network operations
+
+### IBM Verify Adaptive SDK for iOS
+* Increment version
+
+### IBM Verify FIDO2™ SDK for iOS
+* Increment version
+<br/>
+<br/>
+
+# v3.1.3
+4 June 2026
+
+### IBM Verify MFA SDK for iOS
+* Reinstate support for OTP registration during MFA QR code scanning
+* Adds warning when trying to initially connect to a account provider that is  using self-signed certificates
+
+### IBM Verify Core SDK for iOS
+* Increment version
+
+### IBM Verify Authentication SDK for iOS
+* Increment version
+
+### IBM Verify Adaptive SDK for iOS
+* Increment version
+
+### IBM Verify FIDO2™ SDK for iOS
+* Increment version
+<br/>
+<br/>
+
 # v3.1.2
 30 May 2026
 
@@ -24,9 +66,34 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 <br/>
 <br/>
 
+# v3.1.1
+22 April 2026
+
+### IBM Verify MFA SDK for iOS
+* Fixes issue when service_name not provided in OnPremiseRegistrationProvider MFA registration.
+* Fixes the `refreshUri` for `OnPremiseRegistrationProvider` MFA registration.
+* Normalise "fingerprint" to "biometrics" for signature enrolments created using IBM Verify v2 SDK.
+* Adds "Not available" as the `OnPremiseAuthenticator.displayName` when omitted from `OnPremiseRegistrationProvider.initiate()` and not present in the access token during on-premise MFA registration.
+* Use ephemeral sessions for network operations
+
+### IBM Verify Core SDK for iOS
+* Increment version
+
+### IBM Verify Authentication SDK for iOS
+* Increment version
+* Use ephemeral sessions for network operations
+
+### IBM Verify Adaptive SDK for iOS
+* Increment version
+
+### IBM Verify FIDO2™ SDK for iOS
+* Increment version
+<br/>
+<br/>
+
 
 # v3.1.0
-28 February 2026
+21 April 2026
 ### IBM Verify DC SDK for iOS
 * Remove support for digital credentials. Refer to https://github.com/IBM-Verify/verify-mobile-dc-wallet-ios
 
@@ -62,7 +129,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 * Added `createdDate` for authenticators
 
 # v3.0.11
-15 September 2024
+21 December 2024
 ### IBM Verify DC SDK for iOS
 * Adds support for digital credentials. 
 
@@ -75,7 +142,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 * Adds `CloudRegistrationProvider.inAppInitiate` supporting in-app MFA registration.
 
 # v3.0.9
-19 February 2024
+20 February 2024
 ### IBM Verify MFA SDK for iOS
 * Fix `FactorType` enum accessibility.
 * Support for low entropy OTP generation.
@@ -95,7 +162,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 <br/>
 
 # v3.0.8
-22 January 2024
+13 January 2024
 ### IBM Verify MFA SDK for iOS
 * Increment version
 * Fix JSON format when enrolling factor.
@@ -126,7 +193,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 <br/>
 
 # v3.0.7
-5 July 2023
+20 July 2023
 ### IBM Verify MFA SDK for iOS
 * Increment version
 * Fix JSON format when enrolling factor.
