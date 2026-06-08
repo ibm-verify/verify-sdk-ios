@@ -408,8 +408,11 @@ extension OnPremiseAuthenticatorService {
         
         // Process each JSON value in the extras
         for json in item.values {
+            // Normalize JSON string: replace single quotes with double quotes for valid JSON
+            let normalizedJson = json.replacingOccurrences(of: "'", with: "\"")
+            
             // Safely convert string to data
-            guard let value = json.data(using: .utf8) else {
+            guard let value = normalizedJson.data(using: .utf8) else {
                 continue // Skip invalid UTF-8 strings
             }
             
