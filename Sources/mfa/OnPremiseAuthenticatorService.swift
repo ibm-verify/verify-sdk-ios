@@ -400,81 +400,93 @@ extension OnPremiseAuthenticatorService {
         var result: [TransactionAttribute: String] = [:]
 
         // Check if the extras exist.
-        if let item = attributes.first(where: { $0.uri == "mmfa:request:extras" }) {
-            do {
-                try? item.values.forEach { json in
-                    let value = json.data(using: String.Encoding.utf8)!
-                    var data = try JSONSerialization.jsonObject(with: value, options: []) as! [String: Any]
+        guard let item = attributes.first(where: { $0.uri == "mmfa:request:extras" }) else {
+            // If there is no type in the array, add the default "request"
+            result.updateValue(NSLocalizedString("PendingRequestTypeDefault", bundle: Bundle.module, comment: ""), forKey: .type)
+            return result
+        }
+        
+        // Process each JSON value in the extras
+        for json in item.values {
+            // Safely convert string to data
+            guard let value = json.data(using: .utf8) else {
+                continue // Skip invalid UTF-8 strings
+            }
+            
+            // Safely parse JSON
+            guard let data = try? JSONSerialization.jsonObject(with: value, options: []) as? [String: Any] else {
+                continue // Skip invalid JSON or non-dictionary structures
+            }
+            
+            var mutableData = data
+            
+            // Add the type to the result, then remove from dictionary.
+            if let type = mutableData["type"] as? String {
+                result.updateValue(type, forKey: .type)
+                mutableData.removeValue(forKey: "type")
+            }
 
-                    // Add the type to the result, then remove from dictionary.
-                    if let type = data["type"] as? String {
-                        result.updateValue(type, forKey: .type)
-                        data.removeValue(forKey: "type")
+            // Add the IP address to the result, then remove from dictionary.
+            if let ipAddress = mutableData["originIpAddress"] as? String {
+                result.updateValue(ipAddress, forKey: .ipAddress)
+                mutableData.removeValue(forKey: "originIpAddress")
+            }
+
+            // Add the user-agent to the result, then remove from dictionary.
+            if let userAgent = mutableData["originUserAgent"] as? String {
+                result.updateValue(userAgent, forKey: .userAgent)
+                mutableData.removeValue(forKey: "originUserAgent")
+            }
+
+            // Add the location name to the result, then remove from dictionary.
+            if let location = mutableData["originLocation"] as? String {
+                result.updateValue(location, forKey: .location)
+                mutableData.removeValue(forKey: "originLocation")
+            }
+
+            // Add the image to the result, then remove from dictionary.
+            if let imageUrl = mutableData["imageURL"] as? String {
+                result.updateValue(imageUrl, forKey: .image)
+                mutableData.removeValue(forKey: "imageURL")
+            }
+
+            // Add the correlation to the result, then remove from dictionary.
+            if let value = mutableData["correlationEnabled"] {
+                var isEnabled = false
+                
+                if let boolValue = value as? Bool {
+                    isEnabled = boolValue
+                }
+                else if let stringValue = value as? String, let boolFromString = Bool(stringValue.lowercased()) {
+                    isEnabled = boolFromString
+                }
+                
+                if isEnabled {
+                    if let correlationValue = mutableData["correlationValue"] as? String {
+                        result.updateValue("\(correlationValue)", forKey: .correlation)
+                        mutableData.removeValue(forKey: "correlationValue")
                     }
-
-                    // Add the IP address to the result, then remove from dictionary.
-                    if let ipAddress = data["originIpAddress"] as? String {
-                        result.updateValue(ipAddress, forKey: .ipAddress)
-                        data.removeValue(forKey: "originIpAddress")
+                    else {
+                        let correlationValue = computeCorrelationValue(from: item.transactionId)
+                        result.updateValue("\(correlationValue)", forKey: .correlation)
                     }
+                }
+                
+                mutableData.removeValue(forKey: "correlationEnabled")
+            }
+            
+            // Assign the remaining values to TransactionAttribute.custom
+            if !mutableData.isEmpty {
+                // Normalize the array of values for consistency with Cloud (CIV).  i.e [{"name":"name1", "value": "value1"}, ...]
+                var additionalData = [[String: Any]]()
 
-                    // Add the user-agent to the result, then remove from dictionary.
-                    if let userAgent = data["originUserAgent"] as? String {
-                        result.updateValue(userAgent, forKey: .userAgent)
-                        data.removeValue(forKey: "originUserAgent")
-                    }
+                mutableData.forEach { key, value in
+                    additionalData.append(["name": key, "value": value])
+                }
 
-                    // Add the location name to the result, then remove from dictionary.
-                    if let location = data["originLocation"] as? String {
-                        result.updateValue(location, forKey: .location)
-                        data.removeValue(forKey: "originLocation")
-                    }
-
-                    // Add the image to the result, then remove from dictionary.
-                    if let imageUrl = data["imageURL"] as? String {
-                        result.updateValue(imageUrl, forKey: .image)
-                        data.removeValue(forKey: "imageURL")
-                    }
-
-                    // Add the correlation to the result, then remove from dictionary.
-                    if let value = data["correlationEnabled"] {
-                        var isEnabled = false
-                        
-                        if let boolValue = value as? Bool {
-                            isEnabled = boolValue
-                        }
-                        else if let stringValue = value as? String, let boolFromString = Bool(stringValue.lowercased()) {
-                            isEnabled = boolFromString
-                        }
-                        
-                        if isEnabled {
-                            if let correlationValue = data["correlationValue"] as? String {
-                                result.updateValue("\(correlationValue)", forKey: .correlation)
-                                data.removeValue(forKey: "correlationValue")
-                            }
-                            else {
-                                let correlationValue = computeCorrelationValue(from: item.transactionId)
-                                result.updateValue("\(correlationValue)", forKey: .correlation)
-                            }
-                        }
-                        
-                        data.removeValue(forKey: "correlationEnabled")
-                    }
-                    
-                    // Assign the remaining values to TransactionAttribute.custom
-                    if !data.isEmpty {
-                        // Normalize the array of value for consistency with Cloud (CIV).  i.e [{"name":"name1", "value": "value1"}, ...]
-                        var additionalData = [[String: Any]]()
-
-                        data.forEach {
-                            item in
-                            additionalData.append(["name": item.key, "value": item.value])
-                        }
-
-                        if let customData = try? JSONSerialization.data(withJSONObject: additionalData), let customJson = String(data: customData, encoding: .utf8) {
-                            result.updateValue(customJson, forKey: .custom)
-                        }
-                    }
+                if let customData = try? JSONSerialization.data(withJSONObject: additionalData),
+                   let customJson = String(data: customData, encoding: .utf8) {
+                    result.updateValue(customJson, forKey: .custom)
                 }
             }
         }
