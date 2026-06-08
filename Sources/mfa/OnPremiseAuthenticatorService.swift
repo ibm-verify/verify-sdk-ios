@@ -115,6 +115,10 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         
         self.currentPendingTransaction = pendingTransaction
         
+        if pendingTransaction == nil {
+            return NextTransactionInfo(current: nil, countOfPendingTransactions: transactionResult.transactions.count)
+        }
+        
         return NextTransactionInfo(current: pendingTransaction, countOfPendingTransactions: transactionResult.transactions.count)
     }
     
@@ -295,31 +299,25 @@ extension OnPremiseAuthenticatorService {
     ///   - result: The `TransactionResult` containing the parsed data.
     ///   - transactionId: The identifier of the transaction.
     /// - Remark: The `TransactionResult.transactions` have been sorted by `creationDate`.
-    private func createPendingTransaction(with result: TransactionResult, transactionId: String? = nil) async throws -> PendingTransactionInfo {
-        // Optional variable to hold the transaction. By default, we'll store the first transaction encountered but reassign if we match the authenticatorId and/or transactionId.
-        var transactionInfoResult: TransactionResult.TransactionInfo?
-
-        // 1. Get a list of attributesPending that contain mmfa:request:authenticator:id.
-        let identifiers = result.attributes.filter({ $0.uri == "mmfa:request:authenticator:id" })
+    private func createPendingTransaction(with result: TransactionResult, transactionId: String? = nil) async throws -> PendingTransactionInfo? {
+        let transactionInfo: TransactionResult.TransactionInfo?
         
-        // 2. A user may have more than one registered authenticator, get the [attributePending] for the authenticator that will verify the transaction.
-        if let identifier = identifiers.first(where: { $0.values.contains(authenticatorId) }) {
-            // If a transactionId was passed in as a parameter, get that one, otherwise get the first transaction for the authenticator.
-            if let transactionId = transactionId {
-                transactionInfoResult = result.transactions.first(where: { $0.transactionId == transactionId })
+        // 1. If a transactionId is provided, resolve directly by transactionId.
+        if let transactionId = transactionId {
+            transactionInfo = result.transactions.first(where: { $0.transactionId == transactionId })
+        }
+        else {
+            // 2. Otherwise, resolve the first transaction associated with this authenticator.
+            let identifier = result.attributes.first {
+                $0.uri == "mmfa:request:authenticator:id" && $0.values.contains(authenticatorId)
             }
-            else {
-                transactionInfoResult = result.transactions.first(where: { $0.transactionId == identifier.transactionId })
+            transactionInfo = identifier.flatMap { identifier in
+                result.transactions.first(where: { $0.transactionId == identifier.transactionId })
             }
         }
         
-        // 3. Make sure a transaction is resolved.
-        if !identifiers.isEmpty && transactionInfoResult == nil {
-            throw MFAServiceError.noTransactionForAuthenticator
-        }
-        
-        guard let transactionInfo = transactionInfoResult else {
-            throw MFAServiceError.unableToCreateTransaction
+        guard let transactionInfo else {
+            return nil
         }
         
         // 4. Get the verification challenage information associated with the transaction. If this doesn't exist we end here.
