@@ -113,7 +113,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         var attributes = MFAAttributeInfo.dictionary(snakeCaseKey: true)
         attributes["account_name"] = self.accountName
         attributes["push_token"] = self.pushToken
-        attributes["tenant_id"] = UUID().uuidString
+      //  attributes["tenant_id"] = UUID().uuidString
         
         // If there is additional data, merge with the parameters retaining existing values and only adding 10 additional paramterers
         if let additionalData {
