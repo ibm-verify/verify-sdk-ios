@@ -46,7 +46,7 @@ class MFARegistrationControllerTests: XCTestCase {
     /// Test the scan and create an instance of the cloud registration provider.
     func testInitiateCloudRegistration() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBaseCloud)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
+        let registrationUrl = URL(string: "\(urlBaseCloud)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiate")
         
         // Where
@@ -113,7 +113,7 @@ class MFARegistrationControllerTests: XCTestCase {
     /// Test the scan and create an instance registration controller and test the domain.
     func testInitiateCloudRegistrationDomain() async throws {
         // Given
-        let registrationUrl = URL(string: "\(urlBaseCloud)/v1.0/authenticators/registration?skipTotpEnrollment=true")!
+        let registrationUrl = URL(string: "\(urlBaseCloud)/v1.0/authenticators/registration?skipTotpEnrollment=false")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "cloud.initiate")
         
         // Where

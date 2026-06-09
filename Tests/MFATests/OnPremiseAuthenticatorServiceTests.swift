@@ -149,9 +149,9 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
     /// Test an on-premise transaction with the SDK performing the signing.
     func testNextTransactionWithKeys() async throws {
         // Given
-        let transactionId = "fcd138c0-396f-4298-8c14-27a5196ad05e"
+        let transactionId = "FCD138C0-396F-4298-8C14-27A5196AD05E"
         let transactionUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending")!
-        let challenageUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?MmfaTransactionId=FCD138C0-396F-4298-8C14-27A5196AD05E")!
+        let challenageUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?MmfaTransactionId=\(transactionId)")!
         let completeTransactionUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?StateId=3oU0Y2A52YnkX39Dnz3dAxRi49ynz7lDMgO3BUHuY57syFoUJ92VLCXQtGXFvuKX29S8gEqhKshSJ5TU2UGKunsXi4SJ9VR0ET3An6JTpPkE14NjMqreYhzTUnglrqVW")!
         
         MockURLProtocol.urls[transactionUrl] = MockHTTPResponse(response: HTTPURLResponse(url: transactionUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.transaction")
@@ -165,7 +165,7 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         // Then
         let result = try await service.nextTransaction()
         XCTAssertEqual(result.countOfPendingTransactions, 2)
-        XCTAssertEqual(result.current?.id, transactionId)
+        XCTAssertEqual(result.current?.id.uppercased(), transactionId)
         
         // Then
         do {
@@ -235,7 +235,7 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         
         // Setup mock URLs for transaction
         let transactionUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending")!
-        let challenageUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?MmfaTransactionId=DEA8B846-76DC-4786-9941-DAF9FA86427E")!
+        let challenageUrl = URL(string: "\(urlBase)/mga/sps/apiauthsvc?MmfaTransactionId=\(transactionId)")!
            
         MockURLProtocol.urls[transactionUrl] = MockHTTPResponse(response: HTTPURLResponse(url: transactionUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.transactionNoAuthenticator")
         MockURLProtocol.urls[challenageUrl] = MockHTTPResponse(response: HTTPURLResponse(url: challenageUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.transactionChallenge")

@@ -294,7 +294,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
         // Resolve algorithm
         guard let preferredAlgorithm = SigningAlgorithm(from: attributes.algorithm) else {
-            throw CloudRegistrationError.invalidAlgorithm(reason: "The resolved algorithm '\(attributes.algorithm)' is not valid.")
+            throw OnPremiseRegistrationError.invalidAlgorithm(reason: "The resolved algorithm '\(attributes.algorithm)' is not valid.")
         }
 
         // Generate key pair
@@ -384,21 +384,14 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             : self.accountName
         
         // 4. Construct the authentication service to refresh the access token (updates tenant_id)
-        let service = OnPremiseAuthenticatorService(
-            with: token.accessToken,
-            refreshUri: initializationInfo.tokenUri,
-            transactionUri: initializationInfo.transactionUri,
+        let oauthProvider = OAuthProvider(
             clientId: self.registrationInfo.clientId,
-            authenticatorId: self.authenticatorId,
-            certificateTrust: self.urlSession.delegate
-        )
+            additionalParameters: ["tenant_id": self.authenticatorId],
+            certificateTrust: self.urlSession.delegate)
         
-        let newToken = try await service.refreshToken(
-            using: refreshToken,
-            accountName: resolvedAccountName,
-            pushToken: self.pushToken,
-            additionalData: nil
-        )
+        let newToken = try await oauthProvider.refresh(
+            issuer: initializationInfo.tokenUri,
+            refreshToken: refreshToken)
         
         // 5. Build and return the final authenticator
         return OnPremiseAuthenticator(

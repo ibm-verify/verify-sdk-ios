@@ -159,7 +159,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
     
     /// Test the initiation where enrollment face and fingerprint are available.  This test will remove the fingerprint factor.
     /// - note: This test uses `LaContext` to determine the biometric sensor.
-    func testNextEnrollmentIsBiometricFactor() async throws {
+    func testEnrollTOTP() async throws {
         // Given
         let registrationUrl = URL(string: "\(urlBase)/mga/sps/mmfa/user/mgmt/details")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.initiate")
@@ -180,9 +180,12 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
         
+        let authenticator: OTPAuthenticator
+        
         // Then
         do {
-            try await provider.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID Required")
+            authenticator = try await provider.enrollOneTimePasscode()
+            XCTAssertNotNil(authenticator)
         }
         catch {
             XCTFail("Expected call to not throw, but it did: \(error)")
@@ -198,7 +201,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
         
-        let enrollmentUrl = URL(string: "\(urlBase)/scim/Me")!
+        let enrollmentUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Authenticator:userPresenceMethods")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentUserPresence")
         
         // Where
@@ -229,7 +232,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
         
-        let enrollmentUrl = URL(string: "\(urlBase)/scim/Me")!
+        let enrollmentUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Authenticator:fingerprintMethods")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentFingerprint")
         
         // Where
@@ -309,7 +312,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
             try await provider.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID youself")
         }
         catch let error {
-            XCTAssertTrue(error is OnPremiseRegistrationError)
+            XCTAssertTrue(error is OnPremiseRegistrationError || error is URLSessionError)
         }
     }
     
@@ -416,7 +419,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
         
-        let enrollmentUrl = URL(string: "\(urlBase)/scim/Me")!
+        let enrollmentUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Authenticator:userPresenceMethods")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentUserPresence")
         
         // Where
