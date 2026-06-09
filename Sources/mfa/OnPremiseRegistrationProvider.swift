@@ -384,9 +384,15 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             : self.accountName
         
         // 4. Construct the authentication service to refresh the access token (updates tenant_id)
+        let additionalParameters = OnPremiseAuthenticatorService.createAdditionalParameters(
+            accountName: resolvedAccountName,
+            pushToken: self.pushToken,
+            tenantId: self.authenticatorId
+        )
+        
         let oauthProvider = OAuthProvider(
             clientId: self.registrationInfo.clientId,
-            additionalParameters: ["tenant_id": self.authenticatorId],
+            additionalParameters: additionalParameters,
             certificateTrust: self.urlSession.delegate)
         
         let newToken = try await oauthProvider.refresh(

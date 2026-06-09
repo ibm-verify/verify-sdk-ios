@@ -9,6 +9,29 @@ import SwiftUI
 
 /// The `OnPremiseAuthenticatorService` enables authenticators to perform transaction, login and token refresh operations.
 public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
+    /// Creates a dictionary of additional parameters for OAuth requests.
+    /// - Parameters:
+    ///   - accountName: The account name to include (optional).
+    ///   - pushToken: The push token to include (optional).
+    ///   - tenantId: The tenant ID to include.
+    ///   - additionalData: Optional additional data to merge (up to 10 items).
+    /// - Returns: A dictionary with the combined parameters.
+    nonisolated public static func createAdditionalParameters(accountName: String? = nil, pushToken: String? = nil, tenantId: String, additionalData: [String: Any]? = nil) -> [String: Any] {
+        var parameters = MFAAttributeInfo.dictionary(snakeCaseKey: true)
+        parameters["accountName"] = accountName
+        parameters["pushToken"] = pushToken
+        parameters["tenant_id"] = tenantId
+        
+        // If there is additional data, merge with the parameters retaining existing values and only adding 10 additional parameters
+        if let additionalData {
+            for (key, value) in additionalData.prefix(10) where parameters[key] == nil {
+                parameters[key] = value
+            }
+        }
+        
+        return parameters
+    }
+    
     public private(set) var accessToken: String
     public private(set) var currentPendingTransaction: PendingTransactionInfo?
     
@@ -63,17 +86,12 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
     ///
     /// Communicate with Apple Push Notification service (APNs) and receive a unique device token that identifies your app.  Refer to [Registering Your App with APNs](https://developer.apple.com/documentation/usernotifications/registering_your_app_with_apns).
     public func refreshToken(using refreshToken: String, accountName: String? = nil, pushToken: String? = nil, additionalData: [String: Any]? = nil) async throws -> TokenInfo {
-        var attributes = MFAAttributeInfo.dictionary(snakeCaseKey: true)
-        attributes["accountName"] = accountName
-        attributes["pushToken"] = pushToken
-        attributes["tenant_id"] = self.authenticatorId
-        
-        // If there is additional data, merge with the parameters retaining existing values and only adding 10 additional paramterers
-        if let additionalData {
-            for (key, value) in additionalData.prefix(10) where attributes[key] == nil {
-                attributes[key] = value
-            }
-        }
+        let attributes = OnPremiseAuthenticatorService.createAdditionalParameters(
+            accountName: accountName,
+            pushToken: pushToken,
+            tenantId: self.authenticatorId,
+            additionalData: additionalData
+        )
         
         // Get a new OAuth token from refresh and update device details.
         let oauthProvider = OAuthProvider(clientId: clientId, additionalParameters: attributes, certificateTrust: self._urlSession.delegate)
