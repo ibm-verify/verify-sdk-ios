@@ -1,4 +1,25 @@
 Note: This is in reverse chronological order, so newer entries are added to the top.
+# v3.1.5
+10 June 2026
+
+### IBM Verify MFA SDK for iOS
+* Refactored pending transaction lookup and nil handling
+
+### IBM Verify Core SDK for iOS
+* Increment version
+
+### IBM Verify Authentication SDK for iOS
+* Increment version
+* Use ephemeral sessions for network operations
+
+### IBM Verify Adaptive SDK for iOS
+* Increment version
+
+### IBM Verify FIDO2™ SDK for iOS
+* Increment version
+<br/>
+<br/>
+
 # v3.1.4
 4 June 2026
 
