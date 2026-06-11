@@ -350,6 +350,23 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
                 return Result.failure(OnPremiseRegistrationError.dataInitializationFailed)
             }
             
+            // Check if the response is an HTTPURLResponse and validate content-type
+            if let httpResponse = response as? HTTPURLResponse {
+                // Get the content-type header (case-insensitive)
+                let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type")
+                
+                // Validate that content-type is application/scim+json
+                // Note: Content-Type may include charset, e.g., "application/scim+json; charset=utf-8"
+                if let contentType = contentType, !contentType.lowercased().contains("application/scim+json") {
+                    return Result.failure(OnPremiseRegistrationError.dataDecodingFailed(
+                        reason: """
+                        Unable to complete enrolment because the server returned an unexpected response. \
+                        This may indicate that a firewall, proxy, or network security device is blocking or modifying the enrolment traffic. Contact your administrator if the problem persists.
+                        """
+                    ))
+                }
+            }
+            
             return Result.success(UUID().uuidString)
         }
         
