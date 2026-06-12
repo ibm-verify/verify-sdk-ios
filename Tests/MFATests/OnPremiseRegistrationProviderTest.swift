@@ -223,6 +223,49 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
         }
     }
     
+    /// Test the initiation, get the next enrollment, then fail userPresence enrollment due to incorrect content-type header.
+    func testEnrollUserPresenceFailInvalidContentType() async throws {
+        // Given
+        let registrationUrl = URL(string: "\(urlBase)/mga/sps/mmfa/user/mgmt/details")!
+        MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.initiateUserPresence")
+
+        let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
+        MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
+        
+        // Create a response with incorrect content-type (not application/scim+json)
+        let enrollmentUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Authenticator:userPresenceMethods")!
+        let invalidContentTypeHeaders = ["Content-Type": "application/json"]
+        MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: invalidContentTypeHeaders)!, fileResource: "onpremise.enrollmentUserPresence")
+        
+        // Where
+        let controller = MFARegistrationController(json: scanResult)
+         
+        // Then
+        XCTAssertNotNil(controller)
+        
+        // Then
+        let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
+        XCTAssertNotNil(provider)
+        
+        // Then - Expect enrollment to fail due to invalid content-type
+        do {
+            try await provider.enrollUserPresence(savePrivateKey: MFARegistrationControllerTests.saveUserPresencePrivateKey)
+            XCTFail("Expected enrollUserPresence to throw an error due to invalid content-type, but it succeeded")
+        }
+        catch let error as OnPremiseRegistrationError {
+            // Verify it's the correct error type
+            if case .dataDecodingFailed(let reason) = error {
+                XCTAssertTrue(reason.contains("Unable to complete enrolment"))
+                XCTAssertTrue(reason.contains("firewall, proxy, or network security device"))
+            } else {
+                XCTFail("Expected dataDecodingFailed error, but got: \(error)")
+            }
+        }
+        catch {
+            XCTFail("Expected OnPremiseRegistrationError, but got: \(error)")
+        }
+    }
+    
     /// Test the initiation, get the next enrollment, then enroll the biometric factor.
     func testEnrollBiometricSuccess() async throws {
         // Given
