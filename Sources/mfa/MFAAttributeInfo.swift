@@ -11,43 +11,43 @@ import Core
 public enum MFAAttributeInfo {
     /// A representation of the current device.
     private static let uiDevice = UIDevice.current
-    
+
     /// A mechanism for evaluating authentication policies and access controls.
     private static let laContext = LAContext()
-    
+
     /// Returns the bundle object that contains the current executable.
     private static let bundle = Bundle.main
-    
+
     // MARK: Device information
-    
+
     /// The name of the device.
     public static var name: String {
         get {
             self.uiDevice.name
         }
     }
-    
+
     /// The model of the device.
     public static var model: String {
         get {
             self.uiDevice.model
         }
     }
-    
+
     /// The name of the operating system running on the device.
     public static var operatingSystem: String {
         get {
             self.uiDevice.systemName
         }
     }
-    
+
     /// The current version of the operating system.
     public static var operatingSystemVersion: String {
         get {
             self.uiDevice.systemVersion
         }
     }
-    
+
     /// The flag to indicate if the device contains known jailbroken technique.
     public static var deviceInsecure: Bool {
         get {
@@ -66,7 +66,7 @@ public enum MFAAttributeInfo {
             #endif
         }
     }
-    
+
     /// An alphanumeric string that uniquely identifies a device to the app’s vendor.
     public static var deviceID: String {
         get {
@@ -74,25 +74,25 @@ public enum MFAAttributeInfo {
             if KeychainService.default.itemExists("deviceId"), let result = try? KeychainService.default.readItem("deviceId", type: String.self) {
                 return result
             }
-            
+
             // Write to the Keychain with new UUID.
             let newDeviceID = UUID().uuidString
-            
+
             try? KeychainService.default.addItem("deviceId", value: newDeviceID, accessControl: .none, accessibility: .afterFirstUnlock)
-            
+
             return newDeviceID
         }
     }
-    
+
     // MARK: - Device hardware
-    
+
     /// A value that indicates a capture device is on the front side of an iOS device.
     public static var hasFrontCamera: Bool {
         get {
             return true
         }
     }
-    
+
     /// The device supports Face ID.
     public static var hasFaceID: Bool {
         get {
@@ -100,7 +100,7 @@ public enum MFAAttributeInfo {
             return laContext.biometryType == .faceID
         }
     }
-    
+
     /// The device supports Touch ID.
     public static var hasTouchID: Bool {
         get {
@@ -108,7 +108,7 @@ public enum MFAAttributeInfo {
             return laContext.biometryType == .touchID
         }
     }
-    
+
     /// Returns a string describing the biometric authentication type available on the device.
     ///
     /// Using `LAContext` to evaluate the device's biometric capabilities. It returns `"Face ID"` if the device supports Face ID, `"Touch ID"` if it supports Touch ID,
@@ -126,7 +126,7 @@ public enum MFAAttributeInfo {
             }
         }
     }
-    
+
     /// Returns a string describing the biometric authentication image from SF Symbols available on the device.
     ///
     /// Usings `LAContext` to evaluate the device's biometric capabilities. It returns `"faceid"` if the device supports Face ID, `"touchid"` if it supports Touch ID,
@@ -144,16 +144,16 @@ public enum MFAAttributeInfo {
             }
         }
     }
-    
+
     // MARK: - Application information
-    
+
     /// The unique string that identifies the app.
     public static var applicationBundleIdentifier: String {
         get {
             return self.bundle.bundleIdentifier!
         }
     }
-    
+
     /// The human-readable name of the bundle.
     public static var applicationName: String {
         get {
@@ -170,15 +170,15 @@ public enum MFAAttributeInfo {
             return "\(version) (\(build))"
         }
     }
-    
+
     /// The release or version number of the framework.
     /// - Remark: This value represents the latest [Github release version](https://github.com/ibm-security-verify/verify-sdk-ios/releases/tag).
     public static var frameworkVersion: String {
         get {
-            return "3.1.4"
+            return "3.1.5"
         }
     }
-    
+
     /// Returns the attribute info’s as a dictionary.
     /// - Parameters:
     ///   - snakeCaseKey: A flag to transform the dictionary key from camel case to snake case format. Default is `false`.

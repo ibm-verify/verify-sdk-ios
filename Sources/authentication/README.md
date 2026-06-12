@@ -14,7 +14,7 @@ An [example](../../Examples/authentication) application is available for the Aut
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.4")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.5")
 ]
 ```
 
@@ -61,10 +61,10 @@ print(result)
 ### Authorization Code Flow (AZN)
 
 Authorization code flow is obtained by using an authorization server as an intermediary between the client and resource owner.  The code can later be exchanged for an access token and refresh token.  Refer to [Authorization Code Grant](https://datatracker.ietf.org/doc/html/rfc6749#section-4.1) for more information.
-        
+
 ```swift
 import Authentication
-import AuthenticationServices 
+import AuthenticationServices
 
 // The view controller to start user authentication.
 class SigninViewController: UIViewController {
@@ -75,7 +75,7 @@ class SigninViewController: UIViewController {
     func onSigninClick() {
         let provider = OAuthProvider(clientId: "a1b2c3d4")
         provider.delegate = self
-        
+
         // Pass additional options like state and preserve the browser session if required.
         provider.authorizeWithBrowser(issuer: issuerURL,
             redirectUrl: self.redirectURL,
@@ -98,7 +98,7 @@ extension SigninViewController: OAuthProviderDelegate {
 
     @MainActor
     func oauthProvider(provider: OAuthProvider, didCompleteWithCode result: (code: String, state: String?)) {
-        
+
         // Exchange the authorization code for an access token.
         Task {
             do {
@@ -116,10 +116,10 @@ extension SigninViewController: OAuthProviderDelegate {
 ### Authorization Code Flow (AZN) with PKCE
 
 PKCE enhances the authorization code flow by introducing a secret created by the calling application that can be verified by the authorization server.  The secret, called the Code Verifier is hashed by the calling application into a Code Challenge; it is this value that is send to the authorization server.  A malicious attacker can only intercept the Authorization Code, but cannot exchange it for an access token without the Code Verifier.  The code can later be exchanged for an access token and refresh token.  Refer to [Proof Key for Code Exchange by OAuth Public Clients](https://datatracker.ietf.org/doc/html/rfc7636) for more information.
-        
+
 ```swift
 import Authentication
-import AuthenticationServices 
+import AuthenticationServices
 
 // The view controller to start user authentication.
 class SigninViewController: UIViewController {
@@ -136,7 +136,7 @@ class SigninViewController: UIViewController {
         // Generate the code verifier and challenge
         self.codeVerifier = PKCE.generateCodeVerifier()
         self.codeChallenge = PKCE.generateCodeChallenge(from: self.codeVerifier!)
-        
+
         // Pass additional options like state and preserve the browser session if required.
         provider.authorizeWithBrowser(issuer: issuerURL,
             redirectUrl: self.redirectURL,
@@ -161,11 +161,11 @@ extension SigninViewController: OAuthProviderDelegate {
 
     @MainActor
     func oauthProvider(provider: OAuthProvider, didCompleteWithCode result: (code: String, state: String?)) {
-        
+
         // Exchange the authorization code for an access token with the code verifier.
         Task {
             do {
-                let result = try await provider.authorize(issuer: tokenURL!, redirectUrl: self.redirectURL, authorizationCode: result.code, codeVerifier: self.codeVerifier) 
+                let result = try await provider.authorize(issuer: tokenURL!, redirectUrl: self.redirectURL, authorizationCode: result.code, codeVerifier: self.codeVerifier)
                 print("save \(token)")
             }
             catch let error {
@@ -218,11 +218,11 @@ extension String {
     public var base64UrlEncodedStringWithPadding: String {
         var value = replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
-        
+
         if value.count % 4 > 0 {
             value.append(String(repeating: "=", count: 4 - value.count % 4))
         }
-        
+
         return value
     }
 }

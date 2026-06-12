@@ -10,7 +10,7 @@ The Core software development kit (SDK) provides common functionality across the
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.4")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.5")
 ]
 ```
 
@@ -80,7 +80,7 @@ Read a `Codable` item from the Keychain.
 guard let person = try? KeychainService.default.readItem("account", typeof: Person.self) {
     return
 }
-   
+
 print(person))
 ```
 
@@ -141,7 +141,7 @@ struct Post: Codable {
 
 let url = URL(string: "https://jsonplaceholder.typicode.com/posts")!
 let resource = HttpResource<[Post]>(json: .get, url: url)
-        
+
 try await URLSession.shared.dataTask(for: resource) { result in
    switch result {
       case .success(let value):
@@ -163,7 +163,7 @@ struct Post: Codable {
 
 let url = URL(string: "https://jsonplaceholder.typicode.com/posts")!
 let resource = HttpResource<[Post]>(json: .get, url: url, queryParams: ["userId": "1"])
-        
+
 try await URLSession.shared.dataTask(for: resource) { result in
    switch result {
       case .success(let value):
@@ -206,11 +206,11 @@ let resource = HttpResource<UIImage>(.get, url: url, accept: .jpeg) { data, resp
       guard let data = data, let image = UIImage(data: data) else {
          throw URLSessionError.noData
       }
-      
+
       return image
    }
 }
-        
+
 try await URLSession.shared.dataTask(for: resource) { result in
    switch result {
    case .success(let image):
@@ -226,7 +226,7 @@ Perform a `map` operation over an array of items using a filter.
 let url = URL(string: "https://jsonplaceholder.typicode.com/posts")!
 let posts = HttpResource<[Post]>(json: .get, url: url)
 let firstPost = posts.map{ $0.first }
-        
+
 try await URLSession.shared.dataTask(for: firstPost) { result in
    switch result {
       case .success(let value):

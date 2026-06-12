@@ -1,4 +1,4 @@
-# IBM Verify SDK for iOS 
+# IBM Verify SDK for iOS
 
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/5625/badge)](https://bestpractices.coreinfrastructure.org/projects/5625)
 
@@ -32,7 +32,7 @@ The following components are currently offered in the package.
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.4")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.5")
 ]
 ```
 

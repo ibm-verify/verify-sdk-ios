@@ -16,7 +16,7 @@ An [example](../../Examples/fido2) application is available for the FIDO2 SDK.
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.4")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.5")
 ]
 ```
 
@@ -65,7 +65,7 @@ URLSession.shared.dataTask(with: request) { data, response, error in
     guard let data = data else {
         return
     }
-    
+
     guard let options = try? JSONDecoder().decode(PublicKeyCredentialCreationOptions.self, from: data) else {
         return
     }
@@ -112,7 +112,7 @@ URLSession.shared.dataTask(with: request) { data, response, error in
     guard let data = data else {
         return
     }
-    
+
     guard let options = try? JSONDecoder().decode(PublicKeyCredentialRequestOptions.self, from: data) else {
         return
     }
@@ -188,7 +188,7 @@ extension ViewController: PublicKeyCredentialDelegate {
     func publicKeyCredential(provider: PublicKeyCredentialProvider, didCompleteWithError error: Error) {
         // Error during assertion
     }
-    
+
     func publicKeyCredential(provider: PublicKeyCredentialProvider, didCompleteWithAssertion result: PublicKeyCredential<AuthenticatorAssertionResponse>) {
         // Convert the assertion response to JSON
         guard let data = try? JSONEncoder().encode(result) else {
@@ -216,4 +216,4 @@ extension ViewController: PublicKeyCredentialDelegate {
 ## License
 This package contains code licensed under the MIT License (the "License"). You may view the License in the [LICENSE](../../LICENSE) file within this package.
 <br/><br/>
-FIDO™ and FIDO2™  are  trademarks (registered in numerous countries) of FIDO Alliance, Inc. 
+FIDO™ and FIDO2™  are  trademarks (registered in numerous countries) of FIDO Alliance, Inc.

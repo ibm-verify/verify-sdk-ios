@@ -14,7 +14,7 @@ An [example](../../Examples/mfa) application is available for the MFA SDK
 
 ```swift
 dependencies: [
-    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.4")
+    .package(name: "IBM Verify", url: "https://github.com/ibm-verify/verify-sdk-ios.git", from: "3.1.5")
 ]
 ```
 
@@ -127,7 +127,7 @@ if let factorType = authenticator.enrolledFactors.first(where: {$0.id == transac
    }
    catch let error {
       print(error)
-   }  
+   }
 }
 
 // Approve
@@ -137,7 +137,7 @@ if let factorType = authenticator.enrolledFactors.first(where: {$0.name == trans
    }
    catch let error {
       print(error)
-   }  
+   }
 }
 ```
 
