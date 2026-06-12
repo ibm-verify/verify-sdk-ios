@@ -12,12 +12,13 @@ class TokenInfoTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
-        URLProtocol.registerClass(MockURLProtocol.self)
+        MockURLProtocol.startInterceptingEphemeralSessions()
     }
 
     override func tearDown() {
+        MockURLProtocol.stopInterceptingEphemeralSessions()
+        MockURLProtocol.urls.removeAll()
         super.tearDown()
-        URLProtocol.unregisterClass(MockURLProtocol.self)
     }
 
     /// Decodes the `TokenInfo`
