@@ -21,7 +21,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
         "client_id": "IBMVerify"
     }
     """
-    
+
     override func setUp() {
         super.setUp()
 
@@ -39,20 +39,20 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         super.tearDown()
     }
-    
+
     /// Test the scan initiation of an on-premise provider .
     func testScanInitializeAuthenticator() async throws {
         // Given
         let registrationUrl = URL(string: "\(urlBase)/mga/sps/mmfa/user/mgmt/details")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.initiate")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
     }
-    
+
     /// Test the initiation of an on-premise provider and enrolls a TOTP factor.
     func testInitializeAuthenticatorWithAccount() async throws {
         // Given
@@ -67,15 +67,15 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account")
         XCTAssertNotNil(provider)
     }
-    
+
     /// Test the initiation of an on-premise provider and fails the TOTP enrollment.
     func testInitializeAuthenticatorFailTOTPEnrollment() async throws {
         // Given
@@ -90,10 +90,10 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         do {
             let _ = try await controller.initiate(with: "OnPremise account")
@@ -102,7 +102,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
             XCTAssertTrue(error is OnPremiseRegistrationError)
         }
     }
-    
+
     /// Test the scan and create an insance of the on-premise registration provider, then detemine which signatures are enabled for enrollment.
     @MainActor
     func testAvailableEnrolments() async throws {
@@ -115,24 +115,24 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let otpUrl = URL(string: "\(urlBase)/mga/sps/mga/user/mgmt/otp/totp")!
         MockURLProtocol.urls[otpUrl] = MockHTTPResponse(response: HTTPURLResponse(url: otpUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentTOTP")
-      
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then
         XCTAssertEqual(provider.canEnrollBiometric, true)
-        
+
         // Then
         XCTAssertEqual(provider.canEnrollUserPresence, true)
     }
-    
+
     /// Test the scan and create an insance of the on-premise registration provider, then get the next enrollments until an error is thrown
     func testNextEnrollmentThrowNoEnrollments() async throws {
         // Given
@@ -141,13 +141,13 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         do {
             let _ = try await controller.initiate(with: "John Doe", pushToken: "abc123")
@@ -156,7 +156,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
             XCTAssertTrue(error is OnPremiseRegistrationError)
         }
     }
-    
+
     /// Test the initiation where enrollment face and fingerprint are available.  This test will remove the fingerprint factor.
     /// - note: This test uses `LaContext` to determine the biometric sensor.
     func testEnrollTOTP() async throws {
@@ -166,22 +166,22 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         let otpUrl = URL(string: "\(urlBase)/mga/sps/mga/user/mgmt/otp/totp")!
         MockURLProtocol.urls[otpUrl] = MockHTTPResponse(response: HTTPURLResponse(url: otpUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentTOTP")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         let authenticator: OTPAuthenticator
-        
+
         // Then
         do {
             authenticator = try await provider.enrollOneTimePasscode()
@@ -191,7 +191,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
             XCTFail("Expected call to not throw, but it did: \(error)")
         }
     }
-    
+
     /// Test the initiation, get the next enrollment, then enroll the user presence factor.
     func testEnrollUserPresenceSuccess() async throws {
         // Given
@@ -200,20 +200,20 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         let enrollmentUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Authenticator:userPresenceMethods")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentUserPresence")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then
         do {
             try await provider.enrollUserPresence(savePrivateKey: MFARegistrationControllerTests.saveUserPresencePrivateKey)
@@ -222,7 +222,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
             XCTFail("Expected call to not throw, but it did: \(error)")
         }
     }
-    
+
     /// Test the initiation, get the next enrollment, then fail userPresence enrollment due to incorrect content-type header.
     func testEnrollUserPresenceFailInvalidContentType() async throws {
         // Given
@@ -231,22 +231,22 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         // Create a response with incorrect content-type (not application/scim+json)
         let enrollmentUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Authenticator:userPresenceMethods")!
         let invalidContentTypeHeaders = ["Content-Type": "application/json"]
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: invalidContentTypeHeaders)!, fileResource: "onpremise.enrollmentUserPresence")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then - Expect enrollment to fail due to invalid content-type
         do {
             try await provider.enrollUserPresence(savePrivateKey: MFARegistrationControllerTests.saveUserPresencePrivateKey)
@@ -265,7 +265,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
             XCTFail("Expected OnPremiseRegistrationError, but got: \(error)")
         }
     }
-    
+
     /// Test the initiation, get the next enrollment, then enroll the biometric factor.
     func testEnrollBiometricSuccess() async throws {
         // Given
@@ -274,20 +274,20 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         let enrollmentUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Authenticator:fingerprintMethods")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentFingerprint")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then
         do {
             try await provider.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID youself")
@@ -296,7 +296,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
             XCTFail("Expected call to not throw, but it did: \(error)")
         }
     }
-    
+
     /// Test the scan and create an insance of the on-premise registration provider, then get the next enrollment with an error.
     func testEnrollmentError() async throws {
         // Given
@@ -305,20 +305,20 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         let enrollmentUrl = URL(string: "\(urlBase)/scim/Me")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 404, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentError")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then
         do {
             try await provider.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID youself")
@@ -327,29 +327,29 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
             XCTAssertTrue(error is OnPremiseRegistrationError)
         }
     }
-    
+
     /// Test the initiation, get the next enrollment, then enroll the fingerprint factor, failing with an unknown signature method.
     func testEnrollmentFailed() async throws {
         // Given
         let registrationUrl = URL(string: "\(urlBase)/mga/sps/mmfa/user/mgmt/details")!
         MockURLProtocol.urls[registrationUrl] = MockHTTPResponse(response: HTTPURLResponse(url: registrationUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.initiateFingerprint")
-        
+
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         let enrollmentUrl = URL(string: "\(urlBase)/scim/Me")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentFailed")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-        
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then
         do {
             try await provider.enrollBiometric(savePrivateKey: MFARegistrationControllerTests.saveBiometricPrivateKey, context: BiometricContext(), reason: "ID youself")
@@ -358,7 +358,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
             XCTAssertTrue(error is OnPremiseRegistrationError || error is URLSessionError)
         }
     }
-    
+
     /// Test the initiation with out the service name, get the next enrollment, then enroll the user presence factor.
     func testEnrollNoServiceSuccess() async throws {
         // Given
@@ -367,20 +367,20 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         let enrollmentUrl = URL(string: "\(urlBase)/scim/Me")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentUserPresence")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then
         let authenticator = try await provider.finalize()
         XCTAssertNotNil(authenticator)
@@ -389,7 +389,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
         XCTAssertNil(authenticator.userPresence)
         XCTAssertNil(authenticator.biometric)
     }
-    
+
     /// Test the initiation with out a supplied account name.
     func testEnrollNoAccuntNameSuccess() async throws {
         // Given
@@ -398,20 +398,20 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         let enrollmentUrl = URL(string: "\(urlBase)/scim/Me")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentUserPresence")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then
         let authenticator = try await provider.finalize()
         XCTAssertNotNil(authenticator)
@@ -419,7 +419,7 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
         XCTAssertEqual(authenticator.accountName, "testuser")
         XCTAssertNil(authenticator.biometric)
     }
-    
+
     /// Test the finalization of the a registration with TOTP.
     func testFinalizeRegistration() async throws -> any MFAAuthenticatorDescriptor {
         // Given
@@ -434,25 +434,25 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then
         let authenticator = try await provider.finalize()
         XCTAssertNotNil(authenticator)
         XCTAssertEqual(authenticator.token.accessToken, "A1b2C3D4")
         XCTAssertNil(authenticator.userPresence)
         XCTAssertNil(authenticator.biometric)
-        
+
         // Then
         return authenticator
     }
-    
+
     /// Test the scan and create an insance of the on-premise registration provider, then enrol with the SDK creating the keys
     func testFinalizeRegistrationWithKeys() async throws -> any MFAAuthenticatorDescriptor {
         // Given
@@ -461,30 +461,30 @@ class OnPremiseRegistrationProviderTest: XCTestCase {
 
         let tokenUrl = URL(string: "\(urlBase)/mga/sps/oauth/oauth20/token")!
         MockURLProtocol.urls[tokenUrl] = MockHTTPResponse(response: HTTPURLResponse(url: tokenUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.tokenRefresh")
-        
+
         let enrollmentUrl = URL(string: "\(urlBase)/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Authenticator:userPresenceMethods")!
         MockURLProtocol.urls[enrollmentUrl] = MockHTTPResponse(response: HTTPURLResponse(url: enrollmentUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, fileResource: "onpremise.enrollmentUserPresence")
-        
+
         // Where
         let controller = MFARegistrationController(json: scanResult)
-         
+
         // Then
         XCTAssertNotNil(controller)
-        
+
         // Then
         let provider = try await controller.initiate(with: "OnPremise account", pushToken: "abc123")
         XCTAssertNotNil(provider)
-        
+
         // Then
         try await provider.enrollUserPresence(
             savePrivateKey: { key in
                 return UUID().uuidString
             })
-        
+
         // Then
         let authenticator = try await provider.finalize()
         XCTAssertNotNil(authenticator)
-        
+
         return authenticator
     }
 }

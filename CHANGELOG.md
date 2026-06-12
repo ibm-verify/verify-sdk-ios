@@ -152,7 +152,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 # v3.0.11
 21 December 2024
 ### IBM Verify DC SDK for iOS
-* Adds support for digital credentials. 
+* Adds support for digital credentials.
 
 ### IBM Verify Core SDK for iOS
 * Support for decoding a JSON array of type `T` of unknown coding key.
@@ -293,7 +293,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 
 ### IBM Verify Authentication SDK for iOS
 * Increment version
-* Updated 
+* Updated
 
 ### IBM Verify Adaptive SDK for iOS
 * Increment version
@@ -313,7 +313,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 
 ### IBM Verify Core SDK for iOS
 * Increment version
-* Increment deployment info to iOS 14.6 
+* Increment deployment info to iOS 14.6
 * Added @propertyWrapper for decoding default JSON values
 * Added Data extension
 * Added String extension

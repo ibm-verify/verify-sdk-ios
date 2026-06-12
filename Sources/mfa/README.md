@@ -127,7 +127,7 @@ if let factorType = authenticator.enrolledFactors.first(where: {$0.id == transac
    }
    catch let error {
       print(error)
-   }  
+   }
 }
 
 // Approve
@@ -137,7 +137,7 @@ if let factorType = authenticator.enrolledFactors.first(where: {$0.name == trans
    }
    catch let error {
       print(error)
-   }  
+   }
 }
 ```
 

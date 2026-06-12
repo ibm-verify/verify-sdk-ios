@@ -1,4 +1,4 @@
-# IBM Verify SDK for iOS 
+# IBM Verify SDK for iOS
 
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/5625/badge)](https://bestpractices.coreinfrastructure.org/projects/5625)
 

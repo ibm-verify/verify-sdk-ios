@@ -57,7 +57,7 @@ import Adaptive
 
 ### Trusteer configuration settings
 
-To start a device collection analysis, you will need to initialise a `TrusteerCollectionService` structure.  This structure is part of the Trusteer zip you can obtain via your tenant configuration  or via the IBM Verify Developer Portal.  Also included in the Trusteer zip will be your `vendorId`, `clientId` and `clientKey`. 
+To start a device collection analysis, you will need to initialise a `TrusteerCollectionService` structure.  This structure is part of the Trusteer zip you can obtain via your tenant configuration  or via the IBM Verify Developer Portal.  Also included in the Trusteer zip will be your `vendorId`, `clientId` and `clientKey`.
 
 
 ## Usage
@@ -114,7 +114,7 @@ The purpose of the `assessment` function is to initiate a risk assessment via th
 Upon receiving the request, the server should call the Proxy SDK's
 [`assess`](https://github.com/ibm-verify/adaptive-proxy-sdk-javascript/tree/develop#assess-a-policy) method, and respond accordingly.
 
-Once a successful response is received, it can be classified into one of `AllowAssessmentResult`, `DenyAssessmentResult`, or `RequiresAssessmentResult` structures, to be passed in the `completion` function.                             
+Once a successful response is received, it can be classified into one of `AllowAssessmentResult`, `DenyAssessmentResult`, or `RequiresAssessmentResult` structures, to be passed in the `completion` function.
 
 ```swift
   // Perform risk assessment
