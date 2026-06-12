@@ -5,7 +5,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 
 ### IBM Verify MFA SDK for iOS
 * Refactored pending transaction lookup and nil handling
-* Handle invalid content-type for `OnPremiseRegistrationProvider` signature enrollments
+* Handle invalid content-type for `OnPremiseRegistrationProvider` signature enrolments
 
 ### IBM Verify Core SDK for iOS
 * Increment version
