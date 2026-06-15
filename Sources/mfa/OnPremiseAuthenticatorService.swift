@@ -112,7 +112,7 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
     public func nextTransaction(with transactionId: String? = nil) async throws -> NextTransactionInfo {
         // Set the decoding behaviour.
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8601FormatterBehavior)
 
         // Create the request headers.
         let headers = ["Authorization": "Bearer \(self.accessToken)"]

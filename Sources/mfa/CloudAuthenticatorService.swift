@@ -298,7 +298,7 @@ extension CloudAuthenticatorService {
         let decodedResult: TransactionResult
         do {
             let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8061FormatterBehavior)
+            decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8601FormatterBehavior)
             decodedResult = try decoder.decode(TransactionResult.self, from: data)
         }
         catch {

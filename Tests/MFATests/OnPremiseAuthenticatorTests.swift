@@ -70,7 +70,7 @@ class OnPremiseAuthenticatorTests: XCTestCase {
         
         // Then
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(.iso8601FormatterBehavior)
         return try decoder.decode(OnPremiseAuthenticator.self, from: data)
     }
     

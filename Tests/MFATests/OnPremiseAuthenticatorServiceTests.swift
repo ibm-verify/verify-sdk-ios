@@ -515,7 +515,7 @@ class OnPremiseAuthenticatorServiceTest: XCTestCase {
         // Where
         let url = Bundle.module.url(forResource: "onpremise.authenticator", withExtension: "json", subdirectory: "Files")!
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(.iso8601FormatterBehavior)
 
         let authenticator = try decoder.decode(OnPremiseAuthenticator.self, from: Data(contentsOf: url))
         let service = OnPremiseAuthenticatorService(with: authenticator.token.accessToken, refreshUri: authenticator.refreshUri, transactionUri: authenticator.transactionUri, clientId: authenticator.clientId, authenticatorId: authenticator.id)

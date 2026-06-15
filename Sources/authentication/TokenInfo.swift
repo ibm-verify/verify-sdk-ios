@@ -20,9 +20,6 @@ import Core
 ///   "expiresIn": 7200
 /// }
 ///
-/// let decoder = JSONDecoder()
-/// decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
-///
 /// let token = try decoder.decode(TokenInfo.self, from: json.data(using: .utf8)!)
 ///
 /// // Print token
@@ -78,7 +75,7 @@ public struct TokenInfo: Codable, @unchecked Sendable {
     /// The flag to indicate if the access token should be refreshed.
     /// - Remark: `true` when 90% of the token lifetime has elapsed since the token created date, otherwise `false`.
     public var shouldRefresh: Bool {
-        return Double(expiresIn) * 0.1 > expiresOn.timeIntervalSinceNow
+        expiresOn.timeIntervalSinceNow < Double(expiresIn) * 0.1
     }
     
     // MARK: Internal Enum
@@ -111,7 +108,7 @@ public struct TokenInfo: Codable, @unchecked Sendable {
         self.expiresIn = try rootContainer.decode(Int.self, forKeys: [.expiresIn, .expires_in])
 
         // Expires On
-        self.expiresOn = try rootContainer.decodeIfPresent(Date.self, forKey: .expiresOn) ?? Date(timeIntervalSinceNow: TimeInterval(expiresIn))
+        self.expiresOn = try Self.decodeExpiresOn(from: rootContainer, expiresIn: expiresIn)
 
         // Token type
         self.tokenType = try rootContainer.decodeIfPresent(String.self, forKey: .tokenType) ?? "Bearer"
@@ -125,7 +122,6 @@ public struct TokenInfo: Codable, @unchecked Sendable {
         // Additional data key
         let unknownContainer = try decoder.container(keyedBy: UnknownCodingKeys.self)
         self.additionalData = unknownContainer.decode(exclude: CodingKeys.self)
-        // self.additionalData = try rootContainer.decodeIfPresent([String: String].self, forKey: .addtionalParameters) ?? [:]
     }
 
     /// Encodes this value into the given encoder.
@@ -141,7 +137,7 @@ public struct TokenInfo: Codable, @unchecked Sendable {
         try rootContainer.encode(tokenType, forKey: .tokenType)
         try rootContainer.encodeIfPresent(refreshToken, forKey: .refreshToken)
         try rootContainer.encode(expiresIn, forKey: .expiresIn)
-        try rootContainer.encode(expiresOn, forKey: .expiresOn)
+        try rootContainer.encode(expiresOn.timeIntervalSinceReferenceDate, forKey: .expiresOn)
         try rootContainer.encodeIfPresent(idToken, forKey: .idToken)
         try rootContainer.encodeIfPresent(scope, forKey: .scope)
     }
@@ -164,5 +160,65 @@ extension TokenInfo: Hashable {
         hasher.combine(expiresIn)
         hasher.combine(tokenType)
         hasher.combine(expiresOn)
+    }
+}
+
+extension TokenInfo {
+    /// Decodes the token expiration date from supported payload formats.
+    ///
+    /// Supports:
+    /// - Apple reference date numbers (seconds since 2001)
+    /// - ISO8601 date strings
+    /// - Missing values (falls back to expiresIn)
+    ///
+    /// Examples:
+    ///
+    /// ```json
+    /// "expires_on": 803186654.91093802
+    /// ```
+    ///
+    /// ```json
+    /// "expires_on": "2023-01-03T06:32:51.632Z"
+    /// ```
+    ///
+    /// ```json
+    /// // expires_on omitted
+    /// ```
+    private static func decodeExpiresOn(from container: KeyedDecodingContainer<CodingKeys>, expiresIn: Int) throws -> Date {
+        // Format 1: Apple Reference Date (Double)
+        if let timestamp = try? container.decodeIfPresent(Double.self, forKey: .expiresOn) {
+            return Date(timeIntervalSinceReferenceDate: timestamp)
+        }
+
+        // Format 2: ISO8601 String
+        if let dateString = try? container.decodeIfPresent(String.self, forKey: .expiresOn) {
+            let formatter = ISO8601DateFormatter()
+
+            formatter.formatOptions = [
+                .withInternetDateTime,
+                .withFractionalSeconds
+            ]
+
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+
+            formatter.formatOptions = [
+                .withInternetDateTime
+            ]
+
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+
+            throw DecodingError.dataCorruptedError(
+                forKey: .expiresOn,
+                in: container,
+                debugDescription: "Unsupported expires_on format: \(dateString)"
+            )
+        }
+
+        // Format 3: No expires_on present
+        return Date(timeIntervalSinceNow: TimeInterval(expiresIn))
     }
 }
