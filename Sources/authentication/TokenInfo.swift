@@ -69,7 +69,7 @@ public struct TokenInfo: Codable, @unchecked Sendable {
 
     /// The flag to indicate if the access token has expired.
     public var tokenExpired: Bool {
-        return Date().compare(expiresOn) == ComparisonResult.orderedDescending
+        Date() > expiresOn
     }
 
     /// The flag to indicate if the access token should be refreshed.
@@ -166,31 +166,65 @@ extension TokenInfo: Hashable {
 extension TokenInfo {
     /// Decodes the token expiration date from supported payload formats.
     ///
-    /// Supports:
-    /// - Apple reference date numbers (seconds since 2001)
-    /// - ISO8601 date strings
-    /// - Missing values (falls back to expiresIn)
+    /// Supported formats:
+    /// - Apple reference date (seconds since 1 Jan 2001)
+    /// - Unix epoch timestamp (seconds since 1 Jan 1970)
+    /// - ISO8601 string
+    /// - Missing value (calculated from expiresIn)
     ///
-    /// Examples:
+    /// Historical payload examples:
     ///
     /// ```json
     /// "expires_on": 803186654.91093802
     /// ```
     ///
     /// ```json
-    /// "expires_on": "2023-01-03T06:32:51.632Z"
+    /// "expires_on": 1672727571.632
     /// ```
     ///
     /// ```json
-    /// // expires_on omitted
+    /// "expires_on": "2023-01-03T06:32:51.632Z"
     /// ```
     private static func decodeExpiresOn(from container: KeyedDecodingContainer<CodingKeys>, expiresIn: Int) throws -> Date {
-        // Format 1: Apple Reference Date (Double)
+        // MARK: Numeric formats
+
         if let timestamp = try? container.decodeIfPresent(Double.self, forKey: .expiresOn) {
-            return Date(timeIntervalSinceReferenceDate: timestamp)
+            let referenceDate = Date(timeIntervalSinceReferenceDate: timestamp)
+            let unixDate = Date(timeIntervalSince1970: timestamp)
+
+            let now = Date()
+
+            // Reject obviously unreasonable dates.
+            let reasonablePast = now.addingTimeInterval(-60 * 60 * 24 * 365 * 10)   // 10 years ago
+            let reasonableFuture = now.addingTimeInterval(60 * 60 * 24 * 365 * 10)  // 10 years ahead
+
+            let referenceIsReasonable =
+                referenceDate >= reasonablePast &&
+                referenceDate <= reasonableFuture
+
+            let unixIsReasonable =
+                unixDate >= reasonablePast &&
+                unixDate <= reasonableFuture
+
+            switch (referenceIsReasonable, unixIsReasonable) {
+            case (true, false):
+                return referenceDate
+
+            case (false, true):
+                return unixDate
+
+            case (true, true):
+                // Prefer Apple Reference Date for compatibility with
+                // current persisted format.
+                return referenceDate
+
+            default:
+                // Neither interpretation looks valid.
+                break
+            }
         }
 
-        // Format 2: ISO8601 String
+        // MARK: ISO8601 string
         if let dateString = try? container.decodeIfPresent(String.self, forKey: .expiresOn) {
             let formatter = ISO8601DateFormatter()
 
@@ -218,7 +252,7 @@ extension TokenInfo {
             )
         }
 
-        // Format 3: No expires_on present
+        // MARK: Missing expires_on
         return Date(timeIntervalSinceNow: TimeInterval(expiresIn))
     }
 }
