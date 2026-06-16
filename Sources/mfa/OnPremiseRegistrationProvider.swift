@@ -130,7 +130,8 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             self.initializationInfo = try await self.urlSession.dataTask(for: resource)
         }
         catch let decodingError as DecodingError {
-            throw OnPremiseRegistrationError.dataDecodingFailed(reason: decodingError.localizedDescription)
+            // Provide user-friendly error message for backend configuration issues
+            throw OnPremiseRegistrationError.dataDecodingFailed(reason: "Unable to complete registration. The server response was invalid or incomplete. Contact your administrator to review the service configuration.")
         }
         catch {
             throw OnPremiseRegistrationError.underlyingError(error: error)
@@ -456,7 +457,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         enum CodingKeys: String, CodingKey {
             case code
             case options
-            case uri = "details_url" // Maps "details_url" from JSON to "detailsURL"
+            case uri = "details_url"        // Maps "details_url" from JSON to "detailsURL"
             case version
             case clientId = "client_id"     // Maps "client_id" from JSON to "clientID"
         }
