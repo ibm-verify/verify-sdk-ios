@@ -35,15 +35,15 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             let result = try decoder.decode(RegistrationInfo.self, from: data)
             self.registrationInfo = result
 
-            if result.ignoreSSLCertificate {
-                // Set the URLSession for certificate pinning with ephemeral configuration
-                // to prevent cookie persistence across registrations.
-                self.urlSession = URLSession(configuration: .ephemeral, delegate: SelfSignedCertificateDelegate(), delegateQueue: nil)
-            }
-            else {
-                // Use ephemeral configuration to prevent cookie persistence.
-                self.urlSession = URLSession(configuration: .ephemeral)
-            }
+            // Set the URLSession for certificate pinning with ephemeral configuration to prevent cookie persistence across registrations.
+            self.urlSession = {
+                let configuration = URLSessionConfiguration.ephemeral
+                configuration.timeoutIntervalForRequest = 15
+                configuration.waitsForConnectivity = false
+                return URLSession(configuration: configuration,
+                                  delegate: result.ignoreSSLCertificate ? SelfSignedCertificateDelegate() : nil,
+                                  delegateQueue: nil)
+            }()
         }
         catch {
             // Re-throw the error as a more descriptive one with the original reason.

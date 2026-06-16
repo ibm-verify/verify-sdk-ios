@@ -62,15 +62,15 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
         self.clientId = clientId
         self.authenticatorId = authenticatorId
 
-        if let certificateTrust = certificateTrust {
-            // Set the URLSession for certificate pinning with ephemeral configuration
-            // to prevent cookie persistence across operations.
-            self._urlSession = URLSession(configuration: .ephemeral, delegate: certificateTrust, delegateQueue: nil)
-        }
-        else {
-            // Use ephemeral configuration to prevent cookie persistence.
-            self._urlSession = URLSession(configuration: .ephemeral)
-        }
+        // Set the URLSession for certificate pinning with ephemeral configuration to prevent cookie persistence across operations.
+        self._urlSession = {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.timeoutIntervalForRequest = 15
+            configuration.waitsForConnectivity = false
+            return URLSession(configuration: configuration,
+                delegate: certificateTrust,
+                delegateQueue: nil)
+        }()
     }
 
     /// Refresh the OAuth token associated with the registered authenticator.
