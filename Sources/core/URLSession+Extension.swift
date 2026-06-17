@@ -189,7 +189,7 @@ public struct HTTPResource<T> {
             requestUrl = component.url!
         }
         
-        request = URLRequest(url: requestUrl)
+        request = URLRequest(url: requestUrl, cachePolicy: .useProtocolCachePolicy, timeoutInterval: timeOutInterval)
         
         // Add the accept header.
         if let accept {
@@ -208,7 +208,6 @@ public struct HTTPResource<T> {
             }
         }
         
-        request.timeoutInterval = timeOutInterval
         request.httpMethod = method.rawValue
         
         // Body property set last because of this issue: https://bugs.swift.org/browse/SR-6687
