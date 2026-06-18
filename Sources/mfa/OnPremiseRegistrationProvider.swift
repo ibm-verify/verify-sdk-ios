@@ -12,6 +12,14 @@ import LocalAuthentication
 public typealias OnPremiseRegistrationError = MFARegistrationError
 
 /// A mechanism for creating a multi-factor authenticator and associated factor enrollments for IBM Verify Access.
+///
+/// - Important:
+///   Transaction session persistence for on-premise authenticators depends on the IBM Security Verify Access Authentication Service session storage configuration. Session data may be stored in `DMap`, or `in-memory` storage.
+///
+///   In-memory storage does not persist registration session state across service restarts, which may interrupt enrollment or require the registration flow to restart.
+///
+///   For more information, see IBM documentation.
+/// [IBM Security Verify Access Advanced Properties](https://www.ibm.com/docs/en/sva/11.0.0?topic=configuration-advanced-properties#aac_advcfgprop__d251e2142__title__1)
 @MainActor
 public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     public typealias Authenticator = OnPremiseAuthenticator
@@ -179,7 +187,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         }
 
         let context = context ?? LAContext()
-        let policy: LAPolicy = .deviceOwnerAuthenticationWithBiometrics
+        let policy: LAPolicy = .deviceOwnerAuthentication
         var error: NSError?
 
         // Hardware / permission pre-check
