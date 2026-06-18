@@ -245,7 +245,7 @@ public final class KeychainService: NSObject {
             var error: Unmanaged<CFError>?
             
             guard let accessControlFlags = SecAccessControlCreateWithFlags(kCFAllocatorDefault, accessibility.rawValue, accessControl.rawValue, &error) else {
-                let message = error?.takeRetainedValue().localizedDescription ?? "Unknown access control error."
+                let message = error?.takeRetainedValue().localizedDescription ?? String(localized: "Unknown access control error.")
                 logger.error("Error occurred applying access control. \(message, privacy: .public)")
                 
                 throw KeychainError.unhandledError(message: message)
@@ -417,7 +417,7 @@ public final class KeychainService: NSObject {
         let status = SecItemCopyMatching(query as CFDictionary, &item)
             
         // Handle lookup results
-        let message = SecCopyErrorMessageString(status, nil) as String? ?? "Unknown error"
+        let message = SecCopyErrorMessageString(status, nil) as String? ?? String(localized: "Unknown error")
         
         // Check the status for an error.
         switch status {
@@ -601,7 +601,7 @@ public final class KeychainService: NSObject {
         case errSecSuccess:
             return
         default:
-            let message = SecCopyErrorMessageString(status, nil) as String? ?? "Unknown error"
+            let message = SecCopyErrorMessageString(status, nil) as String? ?? String(localized: "Unknown error")
             logger.error("Error occured performing the operation. \(message, privacy: .public)")
             throw KeychainError.unhandledError(message: message)
         }

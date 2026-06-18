@@ -248,7 +248,7 @@ extension TokenInfo {
             throw DecodingError.dataCorruptedError(
                 forKey: .expiresOn,
                 in: container,
-                debugDescription: "Unsupported expires_on format: \(dateString)"
+                debugDescription: String(localized: "Unsupported expires_on format: \(dateString)")
             )
         }
 

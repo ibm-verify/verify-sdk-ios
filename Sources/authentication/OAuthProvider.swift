@@ -22,9 +22,9 @@ public enum OAuthProviderError: Error, LocalizedError, Equatable {
     public var errorDescription: String? {
        switch self {
        case .invalidResponse:
-            return NSLocalizedString("The authorization request received an invalid response.", comment: "Invalid response")
+            return String(localized: "The authorization request received an invalid response.")
        case .failed:
-            return NSLocalizedString("The authorization attempt failed.", comment: "Failed")
+            return String(localized: "The authorization attempt failed.")
        case .general(message: let message):
            return NSLocalizedString(message, comment: "General error")
        }
@@ -107,7 +107,7 @@ public class OAuthProvider {
     public static func discover(issuer url: URL, certificateTrust: URLSessionDelegate? = nil) async throws -> OIDCMetadataInfo {
         // Check for the .well-known/openid-configuration
         if !url.path.hasSuffix(".well-known/openid-configuration") {
-            throw URLError(.badURL, userInfo: ["reason": "The URL does not end with the .well-known/openid-configuration path component."])
+            throw URLError(.badURL, userInfo: ["reason": String(localized: "The URL does not end with the .well-known/openid-configuration path component.")])
         }
         
         let decoder = JSONDecoder()

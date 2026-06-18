@@ -137,9 +137,9 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         do {
             self.initializationInfo = try await self.urlSession.dataTask(for: resource)
         }
-        catch let decodingError as DecodingError {
+        catch _ as DecodingError {
             // Provide user-friendly error message for backend configuration issues
-            throw OnPremiseRegistrationError.dataDecodingFailed(reason: "Unable to complete registration. The server response was invalid or incomplete. Contact your administrator to review the service configuration.")
+            throw OnPremiseRegistrationError.dataDecodingFailed(reason: String(localized: "Unable to complete registration. The server response was invalid or incomplete. Contact your administrator to review the service configuration."))
         }
         catch {
             throw OnPremiseRegistrationError.underlyingError(error: error)
@@ -172,7 +172,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
     public func enrollUserPresence(savePrivateKey: (SecKeyAddType) throws -> String) async throws {
         guard canEnrollUserPresence else {
-            throw OnPremiseRegistrationError.enrollmentFailed(reason: "User presence signature method not provided in metadata configuration.")
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: String(localized: "User presence signature method not provided in metadata configuration."))
         }
 
         let signature = (methodKey: "user_presence", subType: "userPresence")
@@ -183,7 +183,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
     public func enrollBiometric(savePrivateKey: (SecKeyAddType) throws -> String, context: LAContext? = nil, reason: String?) async throws {
         guard canEnrollBiometric else {
-            throw OnPremiseRegistrationError.enrollmentFailed(reason: "Biometric signature method not provided in metadata configuration.")
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: String(localized: "Biometric signature method not provided in metadata configuration."))
         }
 
         let context = context ?? LAContext()
@@ -192,7 +192,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
         // Hardware / permission pre-check
         guard context.canEvaluatePolicy(policy, error: &error) else {
-            let failureReason = error?.localizedDescription ?? "Biometry not available."
+            let failureReason = error?.localizedDescription ?? String(localized: "Biometry not available.")
             throw OnPremiseRegistrationError.biometryFailed(reason: failureReason)
         }
 
@@ -212,9 +212,9 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         case .touchID, .faceID:
             signature = ("fingerprint", "fingerprint")
         case .none:
-            throw OnPremiseRegistrationError.biometryFailed(reason: "No biometry type available after authentication.")
+            throw OnPremiseRegistrationError.biometryFailed(reason: String(localized: "No biometry type available after authentication."))
         default:
-            throw OnPremiseRegistrationError.biometryFailed(reason: "Unsupported biometry type")
+            throw OnPremiseRegistrationError.biometryFailed(reason: String(localized: "Unsupported biometry type"))
         }
 
         // Delegate to shared logic
@@ -225,7 +225,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
     public func enrollOneTimePasscode() async throws -> OTPAuthenticator {
         guard canEnrollOneTimePasscode else {
-            throw OnPremiseRegistrationError.enrollmentFailed(reason: "One-time passcode not provided in metadata configuration.")
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: String(localized: "One-time passcode not provided in metadata configuration."))
         }
 
         guard let initializationInfo = self.initializationInfo,
@@ -298,12 +298,12 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         }
 
         guard let attributes = method.attributes else {
-            throw OnPremiseRegistrationError.invalidRegistrationData(reason: "Signature method '\(methodTitle)' has no attributes.")
+            throw OnPremiseRegistrationError.invalidRegistrationData(reason: String(localized: "Signature method '\(methodTitle)' has no attributes."))
         }
 
         // Resolve algorithm
         guard let preferredAlgorithm = SigningAlgorithm(from: attributes.algorithm) else {
-            throw OnPremiseRegistrationError.invalidAlgorithm(reason: "The resolved algorithm '\(attributes.algorithm)' is not valid.")
+            throw OnPremiseRegistrationError.invalidAlgorithm(reason: String(localized: "The resolved algorithm '\(attributes.algorithm)' is not valid."))
         }
 
         // Generate key pair
@@ -368,10 +368,10 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
                 // Note: Content-Type may include charset, e.g., "application/scim+json; charset=utf-8"
                 if let contentType = contentType, !contentType.lowercased().contains("application/scim+json") {
                     return Result.failure(OnPremiseRegistrationError.dataDecodingFailed(
-                        reason: """
+                        reason: String(localized: """
                         Unable to complete enrolment because the server returned an unexpected response. \
                         This may indicate that a firewall, proxy, or network security device is blocking or modifying the enrolment traffic. Contact your administrator if the problem persists.
-                        """
+                        """)
                     ))
                 }
             }
@@ -406,7 +406,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
         // 3. Determine account name locally to avoid mid-async mutation side-effects
         let resolvedAccountName = self.accountName.isEmpty
-            ? (token.additionalData["display_name"] as? String ?? "Not available")
+        ? (token.additionalData["display_name"] as? String ??  String(localized: "Not available"))
             : self.accountName
 
         // 4. Construct the authentication service to refresh the access token (updates tenant_id)

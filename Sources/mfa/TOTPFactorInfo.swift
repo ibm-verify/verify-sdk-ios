@@ -27,7 +27,7 @@ public struct TOTPFactorInfo: Factor, Sendable {
     public let id: String
     
     public var displayName: String {
-        "Time-based one-time password (TOTP)"
+        String(localized: "Time-based one-time password (TOTP)")
     }
     
     public var imageName: String {

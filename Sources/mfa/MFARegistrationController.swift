@@ -257,7 +257,7 @@ extension MFARegistrationDescriptor {
                 return keyLabel
             },
             context: nil,
-            reason: "Verify with device authentication"
+            reason: String(localized: "Verify with device authentication")
         )
     }
 }
