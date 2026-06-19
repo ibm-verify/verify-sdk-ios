@@ -207,7 +207,7 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
 
     public func enrollBiometric(savePrivateKey: (SecKeyAddType) throws -> String, context: LAContext? = nil, reason: String?) async throws {
         let context = context ?? LAContext()
-        let policy: LAPolicy = .deviceOwnerAuthenticationWithBiometrics
+        let policy: LAPolicy = .deviceOwnerAuthentication
         var error: NSError?
 
         // Hardware / permission pre-check
