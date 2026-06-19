@@ -247,10 +247,6 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
         // Custom resource with error-aware parsing
         let resource = HTTPResource<TOTPResponse>(.get, url: totpUri, accept: .json, headers: headers) { data, response in
-            guard let data = data, !data.isEmpty else {
-                return Result.failure(OnPremiseRegistrationError.dataInitializationFailed)
-            }
-
             do {
                 let result = try JSONDecoder().decode(TOTPResponse.self, from: data)
 
@@ -355,10 +351,6 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
         // 7. Create the resource to execute the request to enroll a signature factor and parse the result.
         let resource = HTTPResource<String>(.patch, url: url, accept: .json, contentType: .json, body: body, headers: headers) { data, response in
-            guard let _ = data else {
-                return Result.failure(OnPremiseRegistrationError.dataInitializationFailed)
-            }
-
             // Check if the response is an HTTPURLResponse and validate content-type
             if let httpResponse = response as? HTTPURLResponse {
                 // Get the content-type header (case-insensitive)

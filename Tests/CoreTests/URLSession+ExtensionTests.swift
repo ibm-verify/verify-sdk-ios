@@ -99,7 +99,7 @@ class URLSessionExtensionTests: XCTestCase {
         let request = URLRequest(url: url)
         let resource = HTTPResource<[Post]>(request: request, parse: { data, response in
             do {
-                let value = try JSONDecoder().decode([Post].self, from: data!)
+                let value = try JSONDecoder().decode([Post].self, from: data)
                 return Result.success(value)
             }
             catch let error {
@@ -225,7 +225,7 @@ class URLSessionExtensionTests: XCTestCase {
         // Where
         let resource = HTTPResource<Post>(.patch, url: url, accept: .json, contentType: .json, body: body.data(using: .utf8), headers: ["header1": "header1", "header2": "header2"], timeOutInterval: 15, queryParams: [:], parse: { data, response in
             do {
-                let value = try JSONDecoder().decode(Post.self, from: data!)
+                let value = try JSONDecoder().decode(Post.self, from: data)
                 return Result.success(value)
             }
             catch let error {
@@ -250,8 +250,8 @@ class URLSessionExtensionTests: XCTestCase {
         let url = URL(string: "https://picsum.photos/200")!
         let resource = HTTPResource<UIImage>(.get, url: url, accept: .jpeg) { data, response in
             return Result {
-                guard let data = data, let image = UIImage(data: data) else {
-                    throw URLSessionError.noData
+                guard let image = UIImage(data: data) else {
+                    throw URLSessionError.invalidResource
                 }
                 
                 return image
@@ -274,8 +274,8 @@ class URLSessionExtensionTests: XCTestCase {
         let url = URL(string: "https://picsum.photos/id/0/5616/3744")!
         let resource = HTTPResource<UIImage>(.get, url: url, accept: .jpeg) { data, response in
             return Result {
-                guard let data = data, let image = UIImage(data: data) else {
-                    throw URLSessionError.noData
+                guard let image = UIImage(data: data) else {
+                    throw URLSessionError.invalidResource
                 }
                 
                 return image
@@ -296,26 +296,6 @@ class URLSessionExtensionTests: XCTestCase {
     
     static func throwError(_ error: URLSessionError) throws {
         throw error
-    }
-    
-    /// Tests no data error
-    func testURLSessionErrorNoData() throws {
-        // Given
-        var thrownError: Error?
-
-        // When
-        XCTAssertThrowsError(try URLSessionExtensionTests.throwError(.noData)) {
-            thrownError = $0
-        }
-
-        // Then
-        XCTAssertTrue(thrownError is URLSessionError, "Unexpected error type: \(type(of: thrownError))")
-
-        // Then
-        XCTAssertEqual(thrownError as? URLSessionError, .noData)
-        
-        // Then
-        XCTAssertEqual(thrownError?.localizedDescription, URLSessionError.noData.localizedDescription)
     }
     
     /// Tests unknown error
@@ -466,7 +446,7 @@ class URLSessionExtensionTests: XCTestCase {
             XCTFail("A response in the 200 range was not expected.")
         }
         catch let error {
-            XCTAssertEqual(error as? URLSessionError, URLSessionError.invalidResponse(statusCode: 404, description: "Resource not found"))
+            XCTAssertEqual(error as? URLSessionError, URLSessionError.invalidResponse(statusCode: 404, description: "Not Found"))
         }
     }
     

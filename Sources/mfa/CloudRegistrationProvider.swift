@@ -89,11 +89,6 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
                                                 body: body,
                                                 headers: headers) { data, response in
                 
-                // Ensure data is returned.
-                guard let data = data, !data.isEmpty else {
-                    return Result.failure(CloudRegistrationError.dataInitializationFailed)
-                }
-                
                 // Convert the data to JSON string.
                 guard let value = String(data: data, encoding: .utf8) else {
                     return Result.failure(CloudRegistrationError.dataDecodingFailed(reason: String(localized: "Failed to convert data to UTF-8 string.", bundle: .module)))
@@ -180,10 +175,6 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
         
         // Construct the request and parsing method.  We decode the metadata, then the token using the TokenInfo in the Authentication module.
         let resource = HTTPResource<(initialization: InitializationInfo, token: TokenInfo)>(.post, url: url, accept: .json, contentType: .json, body: body) { data, response in
-            guard let data = data, !data.isEmpty else {
-                return Result.failure(CloudRegistrationError.dataInitializationFailed)
-            }
-            
             do {
                 let metadata = try JSONDecoder().decode(InitializationInfo.self, from: data)
                 let token = try JSONDecoder().decode(TokenInfo.self, from: data)
@@ -364,10 +355,6 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
         
         // 2. Create the resource to execute the request to enroll a signature factor and parse the result.
         let resource = HTTPResource<String>(.post, url: enrollmentUri, accept: .json, contentType: .json, body: body, headers: headers) { data, response in
-            guard let data = data, !data.isEmpty else {
-                return Result.failure(CloudRegistrationError.dataInitializationFailed)
-            }
-            
             // Instead of a proxy object to parse this JSON, easier to parse the data to create a new signature factor from a dictionary.
             guard let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] else {
                 return Result.failure(CloudRegistrationError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from registration response.", bundle: .module)))
