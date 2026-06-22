@@ -342,8 +342,19 @@ extension OnPremiseAuthenticatorService {
         let headers = ["Authorization": "Bearer \(self.accessToken)"]
         let resource = HTTPResource<VerificationInfo>(json: .post, url: transactionInfo.requestUrl, accept: .json, headers: headers)
 
-        guard let verificationInfo = try? await self._urlSession.dataTask(for: resource) else {
-            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from registration response.", bundle: .module))   // An error here typically is due to missing serverChallenge attribute introduced in ISAM 9.0.6.
+        let verificationInfo: VerificationInfo
+        
+        do {
+            // Execute the request, allowing the raw error to throw
+            verificationInfo = try await self._urlSession.dataTask(for: resource)
+        }
+        catch let urlError as URLError {
+            // Capture URLSession-specific transport errors (e.g., timed out, offline)
+            throw MFAServiceError.underlyingError(error: urlError)
+        }
+        catch {
+            // Capture everything else, including decoding failures or missing attributes. By injecting `String(describing: error)`, the actual missing key or type mismatch is preserved.
+            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from transaction response. Detail: \(String(describing: error))", bundle: .module))
         }
 
         // 5. Check if the transaction attributes contain signing information.
