@@ -144,7 +144,9 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
                 .filter { $0.uri == "mmfa:request:authenticator:id" && $0.values.contains(authenticatorId) }
                 .map { $0.transactionId }
             
-            availableTransactions = transactionResult.transactions.filter { attributes.contains($0.transactionId) }
+            availableTransactions = transactionResult.transactions
+                .filter { attributes.contains($0.transactionId) }
+                .sorted { $0.creationTime < $1.creationTime }
         }
 
         // Evaluate sequentially and stop at the first successfully built transaction
