@@ -247,7 +247,7 @@ public class CloudRegistrationProvider: MFARegistrationDescriptor {
     public func enrollOneTimePasscode() async throws -> OTPAuthenticator {
         // 1. Ensure the totpMethod and its attributes exist
         guard let totpMethod = self.initializationInfo?.metadata.authenticationMethods.totpMethod else {
-            throw OnPremiseRegistrationError.invalidState
+            throw CloudRegistrationError.enrollmentFailed(reason: String(localized: "One-time passcode not provided in metadata configuration."))
         }
         
         let attributes = totpMethod.attributes
