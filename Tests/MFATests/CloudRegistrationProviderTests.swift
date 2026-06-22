@@ -681,6 +681,8 @@ class CloudRegistrationProviderTests: XCTestCase {
             switch error {
             case .invalidState:
                 XCTAssertNotNil(error)
+            case .enrollmentFailed:
+                XCTAssertNotNil(error)
             default:
                 XCTFail("Unexpected error type: \(error)")
             }
@@ -714,6 +716,8 @@ class CloudRegistrationProviderTests: XCTestCase {
         catch let error as MFARegistrationError {
             switch error {
             case .invalidState:
+                XCTAssertNotNil(error)
+            case .enrollmentFailed:
                 XCTAssertNotNil(error)
             default:
                 XCTFail("Unexpected error type: \(error)")

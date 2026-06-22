@@ -5,6 +5,7 @@
 import Foundation
 import Authentication
 import Core
+import os
 
 /// A type that indicates when the cloud service fails.
 public typealias CloudServiceError = MFAServiceError
@@ -23,6 +24,10 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
         /// Search is by id={transactionId}.
         case pendingByIdentifier = "?filter=id,creationTime,transactionData,correlationEnabled,correlationValue,expiryTime,authenticationMethods&search=state=\u{22}PENDING\u{22}&id=\u{22}%@\u{22}"
     }
+    
+    private let logger = Logger(subsystem: "com.ibm.security.verifysdk", category: "mfa")
+
+    // MARK: - Properties
     
     public private(set) var accessToken: String
     public private(set) var currentPendingTransaction: PendingTransactionInfo?
@@ -93,9 +98,10 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
     ///
     /// Communicate with Apple Push Notification service (APNs) and receive a unique device token that identifies your app.  Refer to [Registering Your App with APNs](https://developer.apple.com/documentation/usernotifications/registering_your_app_with_apns).
     public func refreshToken(using refreshToken: String, accountName: String? = nil, pushToken: String? = nil, additionalData: [String: Any]? = nil) async throws -> TokenInfo {
+        logger.info("Attempting cloud token refresh for authenticator: \(self.authenticatorId, privacy: .public)")
+        
         var attributes = MFAAttributeInfo.dictionary()
         attributes.removeValue(forKey: "applicationName")
-        
         attributes["accountName"] = accountName
         attributes["pushToken"] = pushToken
         
@@ -115,17 +121,23 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
             body = try JSONSerialization.data(withJSONObject: data)
         }
         catch {
-            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Failed to convert data to UTF-8 string.", bundle: .module))
+            logger.error("Failed to serialize refresh request: \(error.localizedDescription, privacy: .public)")
+            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Failed to convert data to JSON.", bundle: .module))
         }
         
         // Construct and perform the network request.
         let resource = HTTPResource<TokenInfo>(json: .post, url: refreshUri, body: body)
-        let result = try await self._urlSession.dataTask(for: resource)
         
-        // Update the internal accessToken and return the result.
-        self.accessToken = result.accessToken
-        
-        return result
+        do {
+            let result = try await self._urlSession.dataTask(for: resource)
+            self.accessToken = result.accessToken
+            logger.info("Token refresh successful.")
+            return result
+        }
+        catch {
+            logger.error("Token refresh failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
     }
     
     /// Fetches the next pending transaction, optionally filtered by an identifier.
@@ -144,78 +156,64 @@ public actor CloudAuthenticatorService: MFAServiceDescriptor {
     /// print(result)
     /// ```
     public func nextTransaction(with transactionId: String? = nil) async throws -> NextTransactionInfo {
-        // The URL for the request.
-        let url: URL
+        logger.info("Fetching next cloud transaction. Explicit ID: \(transactionId ?? "None", privacy: .public)")
         
-        // Use a conditional to handle URL construction based on the transactionId.
-        if let transactionId = transactionId {
-            // Append the transaction ID to the query string for the specified filter.
-            let queryString = String(format: TransactionFilter.pendingByIdentifier.rawValue, transactionId)
+        let queryString = transactionId != nil
+            ? String(format: TransactionFilter.pendingByIdentifier.rawValue, transactionId!)
+            : TransactionFilter.nextPending.rawValue
             
-            // Construct the final URL by combining the base URI with the query string.
-            guard let finalURL = URL(string: "\(self.transactionUri.absoluteString)\(queryString)") else {
-                throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Failed to construct valid URL with transaction ID '\(transactionId)'.", bundle: .module))
-            }
-            url = finalURL
-        }
-        else {
-            // If no transaction ID is provided, use the next pending filter.
-            guard let finalURL = URL(string: "\(self.transactionUri.absoluteString)\(TransactionFilter.nextPending.rawValue)") else {
-                throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Failed to construct valid URL for next pending transaction.", bundle: .module))
-            }
-            url = finalURL
+        guard let url = URL(string: "\(self.transactionUri.absoluteString)\(queryString)") else {
+            logger.error("Failed to construct URL for cloud transaction fetch.")
+            return NextTransactionInfo(current: nil, countOfPendingTransactions: 0)
         }
         
-        // Create the request headers.
         let headers = ["Authorization": "Bearer \(self.accessToken)"]
-        
-        // Construct the resource with the final URL.
         let resource = HTTPResource<NextTransactionInfo>(.get, url: url, accept: .json, headers: headers, parse: parsePendingTransaction)
         
-        // Perform the request.
-        let result = try await self._urlSession.dataTask(for: resource)
-        self.currentPendingTransaction = result.current
-        
-        return result
+        do {
+            let result = try await self._urlSession.dataTask(for: resource)
+            self.currentPendingTransaction = result.current
+            return result
+        }
+        catch {
+            logger.error("Error fetching cloud transactions: \(error.localizedDescription, privacy: .public)")
+            return NextTransactionInfo(current: nil, countOfPendingTransactions: 0)
+        }
     }
     
     public func completeTransaction(action userAction: UserAction = .verify, signedData: String) async throws {
         guard let pendingTransaction = currentPendingTransaction else {
+            logger.error("Attempted to complete cloud transaction, but no transaction is currently pending.")
             throw MFAServiceError.invalidPendingTransaction
         }
         
-        defer {
-            // Clear the current pending transaction
-            self.currentPendingTransaction = nil
-        }
+        defer { self.currentPendingTransaction = nil }
         
         try await completeTransaction(transaction: pendingTransaction, action: userAction, signedData: signedData)
     }
     
     public func completeTransaction(transaction pendingTransaction: PendingTransactionInfo, action userAction: UserAction, signedData: String) async throws {
+        logger.info("Completing cloud transaction \(pendingTransaction.id, privacy: .public) with action: \(userAction.rawValue, privacy: .public)")
+                
+        let data: [[String: Any]] = userAction == .verify
+            ? [["id": pendingTransaction.factorId.lowercased(), "userAction": userAction.rawValue, "signedData": signedData]]
+            : [["id": pendingTransaction.factorId.lowercased(), "userAction": userAction.rawValue]]
         
-        // Create the request parameters.
-        var data: [[String: Any]] = [[:]]
-        
-        // Only verify operations where we pass the signedData.
-        if userAction == .verify {
-            data = [["id": pendingTransaction.factorId.lowercased(), "userAction": userAction.rawValue, "signedData": signedData]]
-        }
-        else {
-            data = [["id": pendingTransaction.factorId.lowercased(), "userAction": userAction.rawValue]]
-        }
-        
-        // Covert body dictionary to Data.
         guard let body = try? JSONSerialization.data(withJSONObject: data, options: []) else {
-            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from transaction response.", bundle: .module))
+            throw MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to encode JSON request.", bundle: .module))
         }
-         
-        // Create the request headers.
+        
         let headers = ["Authorization": "Bearer \(self.accessToken)"]
         let resource = HTTPResource<Void>(.post, url: pendingTransaction.postbackUri, accept: .json, contentType: .json, body: body, headers: headers)
         
-        // Perfom the request.
-        return try await self._urlSession.dataTask(for: resource)
+        do {
+            try await self._urlSession.dataTask(for: resource)
+            logger.info("Successfully posted cloud transaction response.")
+        }
+        catch {
+            logger.error("Failed to complete cloud transaction '\(userAction.rawValue)': \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
     }
 }
 
@@ -292,30 +290,31 @@ extension CloudAuthenticatorService {
     /// - Returns: A value that represents either a success or a failure, including an associated value in each case.
     private func parsePendingTransaction(data: Data?, response: URLResponse?) -> Result<NextTransactionInfo, Error> {
         guard let data = data, !data.isEmpty else {
-            return .failure(MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from transaction response.")))
+            logger.warning("Empty response received from cloud transaction endpoint.")
+            return .success(NextTransactionInfo(current: nil, countOfPendingTransactions: 0))
         }
         
         let decodedResult: TransactionResult
+        
         do {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8601FormatterBehavior)
             decodedResult = try decoder.decode(TransactionResult.self, from: data)
         }
         catch {
+            logger.error("Failed to decode cloud transaction JSON: \(error.localizedDescription, privacy: .public)")
             return .failure(MFAServiceError.dataDecodingFailed(reason: error.localizedDescription))
         }
 
-        // Check if there are no pending transactions.
         guard decodedResult.count > 0 else {
             return .success(NextTransactionInfo(current: nil, countOfPendingTransactions: 0))
         }
         
-        // Create the pending transaction and return the result.
         if let pendingTransaction = createPendingTransaction(using: decodedResult) {
             return .success(NextTransactionInfo(current: pendingTransaction, countOfPendingTransactions: decodedResult.count))
         }
         
-        return .failure(MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to decode JSON from transaction response.")))
+        return .failure(MFAServiceError.dataDecodingFailed(reason: String(localized: "Unable to find valid transaction in response.", bundle: .module)))
     }
     
     /// Creates a `PendingTransaction` based on the parsed transaction and attribute data.
