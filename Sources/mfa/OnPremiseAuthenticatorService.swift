@@ -202,9 +202,15 @@ public actor OnPremiseAuthenticatorService: MFAServiceDescriptor {
             logger.info("Successfully posted transaction response.")
         }
         catch {
-            // Reverted: Log the error and allow it to propagate to the caller.
-            logger.error("Failed to complete transaction '\(userAction.rawValue)': \(error.localizedDescription, privacy: .public)")
-            throw error
+            // If the request is a user deny, no error should be returned.
+            if userAction == .deny || userAction == .markAsFraud {
+                return
+            }
+            else {
+                // Reverted: Log the error and allow it to propagate to the caller.
+                logger.error("Failed to complete transaction '\(userAction.rawValue)': \(error.localizedDescription, privacy: .public)")
+                throw error
+            }
         }
     }
 
