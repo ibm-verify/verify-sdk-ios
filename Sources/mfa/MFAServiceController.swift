@@ -241,7 +241,6 @@ public class MFAServiceController {
     /// - Parameters:
     ///   - authenticator: The multi-factor authenticator.
     public required init(using authenticator: some MFAAuthenticatorDescriptor) {
-        precondition(authenticator is OnPremiseAuthenticator || authenticator is CloudAuthenticator)
         self.authenticator = authenticator
     }
     

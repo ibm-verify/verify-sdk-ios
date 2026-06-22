@@ -1,28 +1,34 @@
 {
-    "serviceName": "Test",
-    "qrloginUri": "https://mmfa.securitypoc.com/mga/sps/apiauthsvc?PolicyId=urn:ibm:security:authentication:asf:qrcode_response",
-    "accountName": "mhm",
-    "token":{
-          "authenticator_id": "uuid32f7aa4f-6de3-4f6a-b242-a2d935144974",
-          "token_type": "bearer",
-          "scope": "mmfaAuthn",
-          "refreshToken": "VM6eEnMxmr8n479QSXiy1fTiVXP552StZNoD7GJr",
-          "display_name": "mhm",
-          "expiresIn": 3599,
-          "accessToken": "TCvJksf2wdIF5k9pFS2x",
-          "expires_on": "2023-01-03T06:32:51.632Z"
-    },
-    "theme": {},
-    "clientId": "AuthenticatorClient",
-    "ignoreSSLCertificate": false,
-    "userPresence": {
-        "id": "7F81136C-DD93-4D96-BC6B-3F3A3DD4583E",
-        "name": "uuid32f7aa4f-6de3-4f6a-b242-a2d935144974.userPresence",
-        "algorithm": "sha512",
-        "imageName" : "hand.tap",
-        "displayName" : "User presence"
-    },
-    "id": "uuid32f7aa4f-6de3-4f6a-b242-a2d935144974",
-    "refreshUri": "https://mmfa.securitypoc.com/mga/sps/oauth/oauth20/token",
-    "transactionUri": "https://mmfa.securitypoc.com/scim/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending"
+   "refreshUri":"https:\/\/mmfa-mobile.securitypoc.com:443\/mga\/sps\/oauth\/oauth20\/token",
+   "qrloginUri":"https:\/\/mmfa-mobile.securitypoc.com:443\/mga\/sps\/apiauthsvc\/policy\/qrcode_response",
+   "serviceName":"MMFACookbook",
+   "biometric":{
+      "name":"84ED80D4-6A60-4C64-B627-C2F6E7E3E07D.biometrics",
+      "id":"84ED80D4-6A60-4C64-B627-C2F6E7E3E07D",
+      "algorithm":"sha512"
+   },
+   "transactionUri":"https:\/\/mmfa-mobile.securitypoc.com:443\/scim\/Me?attributes=urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:transactionsPending,urn:ietf:params:scim:schemas:extension:isam:1.0:MMFA:Transaction:attributesPending",
+   "userPresence":{
+      "name":"84ED80D4-6A60-4C64-B627-C2F6E7E3E07D.userPresence",
+      "id":"84ED80D4-6A60-4C64-B627-C2F6E7E3E07D",
+      "algorithm":"sha512"
+   },
+   "token":{
+      "display_name":"testuser@au1.ibm.com",
+      "expiresIn":119,
+      "token_type":"bearer",
+      "expires_on":803186654.91093802,
+      "refreshToken":"sYtp7I2kazMCrz8HR80BcXzFhlnrKTXTtVLqvmGz",
+      "accessToken":"3snPtcmB28GcWROE",
+      "scope":"mmfaAuthn",
+      "ISV_push_enabled":"true",
+      "authenticator_id":"uuid87826907-e296-4db1-9e27-eead5fb31bf2"
+   },
+   "theme":{
+      
+   },
+   "accountName":"testuser@au1.ibm.com",
+   "id":"uuid87826907-e296-4db1-9e27-eead5fb31bf2",
+   "clientId":"client",
+   "ignoreSSLCertificate":true
 }

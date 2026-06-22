@@ -50,7 +50,7 @@ public enum MFARegistrationError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .dataDecodingFailed(let reason):
-            return String(localized: "The received data could not be parsed. \(reason)", bundle: .module)
+            return String(localized: "\(reason)", bundle: .module)
         case .invalidRegistrationData(let reason):
             return String(localized: "The registration data is invalid. \(reason)", bundle: .module)
         case .invalidState:
@@ -257,7 +257,7 @@ extension MFARegistrationDescriptor {
                 return keyLabel
             },
             context: nil,
-            reason: "Verify with device authentication"
+            reason: String(localized: "Verify with device authentication")
         )
     }
 }

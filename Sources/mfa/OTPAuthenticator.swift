@@ -5,30 +5,38 @@
 import Foundation
 import CryptoKit
 
-/// The authenticator for managing one-time passcodes (OTP), supporting both TOTP and HOTP formats.
+/// A thread-safe, secure token manager that represents a standard One-Time Password (OTP) authentication factor.
+///
+/// This component stores structural account properties and manages cryptographically active counter-based (`HOTP`) or time-based (`TOTP`) factor payload definitions. It conforms to `Sendable` to safely navigate concurrent context bounds.
+///
+/// ### Compile-Time Type Enforcement
+/// Rather than utilizing generic type parameter bounds evaluated at runtime with a `precondition`, this type leverages strict API initialisation overloading. This pattern intercepts type evaluation during compilation, guaranteeing that an instance cannot be constructed with unsupported factors.
 public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
-    // MARK: - Properties
+    // MARK: - Structural Identity Properties
 
-    /// Unique identifier for the authenticator instance.
+    /// Unique identifier assigned to this specific authenticator instance.
     public let id: String
 
-    /// Name of the service (e.g., "Google", "GitHub").
+    /// Name of the service provider issuing the security payload (e.g., "GitHub", "Google").
     public var serviceName: String
 
-    /// Name of the account associated with the service (e.g., "user@example.com").
+    /// User identity identifier or email address linked to the provider token (e.g., "user@example.com").
     public var accountName: String
     
+    /// Optional metadata timestamp capturing exactly when this authenticator structure was provisioned.
     public let createdDate: Date?
 
-    /// Time-based OTP factor, if applicable.
+    // MARK: - Mutually Exclusive Factor Payloads
+
+    /// The active Time-Based One-Time Password parameters (`RFC 6238`), if applicable to this token.
     public let totp: TOTPFactorInfo?
 
-    /// Counter-based OTP factor, if applicable.
+    /// The active HMAC/Counter-Based One-Time Password parameters (`RFC 4226`), if applicable to this token.
     public var hotp: HOTPFactorInfo?
 
-    // MARK: - Codable Support
+    // MARK: - Codable Structure Mapping
 
-    /// Keys used for encoding and decoding JSON.
+    /// Keys used to map structural properties directly into JSON or serialization payloads.
     private enum CodingKeys: String, CodingKey {
         case id
         case serviceName
@@ -38,46 +46,91 @@ public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
         case hotp
     }
 
-    /// Enum to distinguish between OTP types.
+    /// Internal classification key defining the targeted OTP operational protocol.
     private enum OTPType: String {
+        /// Time-based verification model strategy indicator.
         case totp
+        /// Counter/Event-driven verification model strategy indicator.
         case hotp
     }
 
-    // MARK: - Initializers
+    // MARK: - Public Compile-Time Safe Initializers
 
-    /// Initializes the authenticator with a specific OTP factor.
+    /// Initializes an authenticator instance explicitly configured with a Counter-Based OTP factor (`HOTP`).
+    ///
     /// - Parameters:
-    ///   - serviceName: The name of the service providing the one-time passcode.
-    ///   - accountName: The name of the account associated with the service.
-    ///   - createdDate: The date the authenticator was created.
-    ///   - factor: An instance of ``HOTPFactorInfo`` or ``TOTPFactorInfo``
-    public init(with serviceName: String, accountName: String, createdDate: Date? = nil, factor: some Factor) {
-        precondition(factor is HOTPFactorInfo || factor is TOTPFactorInfo, "Only TOTP and HOTP factors are allowed.")
-        
-        self.id = UUID().uuidString
+    ///   - serviceName: The name of the service platform issuing the token.
+    ///   - accountName: The name of the account profile context.
+    ///   - createdDate: An optional generation timestamp. Defaults to `nil`.
+    ///   - factor: A strict `HOTPFactorInfo` structural context package.
+    public init(
+        with serviceName: String,
+        accountName: String,
+        createdDate: Date? = nil,
+        factor: HOTPFactorInfo
+    ) {
+        self.init(
+            id: UUID().uuidString,
+            serviceName: serviceName,
+            accountName: accountName,
+            createdDate: createdDate,
+            totp: nil,
+            hotp: factor
+        )
+    }
+
+    /// Initializes an authenticator instance explicitly configured with a Time-Based OTP factor (`TOTP`).
+    ///
+    /// - Parameters:
+    ///   - serviceName: The name of the service platform issuing the token.
+    ///   - accountName: The name of the account profile context.
+    ///   - createdDate: An optional generation timestamp. Defaults to `nil`.
+    ///   - factor: A strict `TOTPFactorInfo` structural context package.
+    public init(
+        with serviceName: String,
+        accountName: String,
+        createdDate: Date? = nil,
+        factor: TOTPFactorInfo
+    ) {
+        self.init(
+            id: UUID().uuidString,
+            serviceName: serviceName,
+            accountName: accountName,
+            createdDate: createdDate,
+            totp: factor,
+            hotp: nil
+        )
+    }
+
+    // MARK: - Private Designated Core Initializer
+
+    /// The master designated pipeline initializer that maps explicit structural allocations to state storage properties.
+    private init(
+        id: String,
+        serviceName: String,
+        accountName: String,
+        createdDate: Date?,
+        totp: TOTPFactorInfo?,
+        hotp: HOTPFactorInfo?
+    ) {
+        self.id = id
         self.serviceName = serviceName
         self.accountName = accountName
         self.createdDate = createdDate
-
-        // Assign the correct factor type and nil the other.
-        switch factor {
-        case let hotp as HOTPFactorInfo:
-            self.hotp = hotp
-            self.totp = nil
-        case let totp as TOTPFactorInfo:
-            self.totp = totp
-            self.hotp = nil
-        default:
-            fatalError()
-        }
+        self.totp = totp
+        self.hotp = hotp
     }
 
-    /// Convenience initializer that parses an OTP URI from a standard `otpauth://` QR scan string.
-    /// - Parameter value: The URI string scanned from a QR code.
-    /// - Returns: A configured `OTPAuthenticator` instance or `nil` if parsing fails.
+    // MARK: - Convenience String URI QR Parser
+
+    /// Convenience initializer that safely parses standard `otpauth://` URI schema parameters typically embedded inside QR setup targets.
+    ///
+    /// Follows the operational semantics defined by Google Authenticator's URI format specification.
+    ///
+    /// - Parameter value: A raw text string harvested via a camera QR matrix decoding engine scan.
+    /// - Returns: An fully operational `OTPAuthenticator` configuration instance, or `nil` if formatting constraints fail verification steps.
     public init?(fromQRScan value: String) {
-        // MARK: - Parsing Pipeline
+        // MARK: Isolated Extraction Pipeline Closure
         let parse: (String) -> (
             type: OTPType,
             issuer: String,
@@ -89,7 +142,7 @@ public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
             counter: Int
         )? = { input in
 
-            // 1. URL + Type Validation
+            // 1. Structural Schema Validation Bounds Check
             guard
                 let components = URLComponents(string: input),
                 components.scheme?.lowercased() == "otpauth",
@@ -98,25 +151,23 @@ public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
                 return nil
             }
 
-            // 2. Query params (Normalized to lowercase keys)
+            // 2. Query Item Parameter Map Normalization
             let params = components.queryItems?.reduce(into: [String: String]()) {
                 $0[$1.name.lowercased()] = $1.value
             } ?? [:]
 
-            // 3. Required: Secret (Base32 encoded)
+            // 3. Verification Cryptographic Crypt Key Extract
             guard let secret = params["secret"], !secret.isEmpty else {
                 return nil
             }
 
-            // 4. Decode Label (Path)
-            // We strip the leading slash and decode percent-encoding.
+            // 4. Extract Path Label Payload Identity Attributes
             let decodedLabel: String = {
                 let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 return path.removingPercentEncoding ?? ""
             }()
 
-            // 5. Split Label into Issuer and Account
-            // Following spec: /Issuer:Account. If no colon, issuer is nil.
+            // 5. Parse Composite Label Properties into Separate Components
             let (labelIssuer, labelAccount): (String?, String) = {
                 let parts = decodedLabel
                     .split(separator: ":", maxSplits: 1)
@@ -127,21 +178,19 @@ public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
                     : (nil, decodedLabel)
             }()
 
-            // 6. Resolve Final Identities
-            // Priority: Query param "issuer" > Label prefix > "Unknown"
+            // 6. Identity Resolution Priority Evaluation Rule
             let issuer = (params["issuer"] ?? labelIssuer ?? "Unknown")
                 .trimmingCharacters(in: .whitespaces)
 
-            // Account is now strictly whatever was after the colon (or the whole label if no colon)
             let account = labelAccount.trimmingCharacters(in: .whitespaces)
 
-            // 7. Extract Parameters with Defaults
+            // 7. Extract Support Options with Safe Fallback Defaults
             let algorithm = SigningAlgorithm(from: params["algorithm"] ?? "sha1") ?? .sha1
             let digits = params["digits"].flatMap(Int.init) ?? 6
             let period = params["period"].flatMap(Int.init) ?? 30
             let counter = params["counter"].flatMap(Int.init) ?? 0
 
-            // Enforce valid digit lengths
+            // 8. Design Constraint Metric Guard Check
             guard digits == 6 || digits == 8 else {
                 return nil
             }
@@ -149,12 +198,15 @@ public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
             return (type, issuer, account, secret, algorithm, digits, period, counter)
         }
 
-        // MARK: - Execution & Construction
+        // MARK: Pipeline Evaluation and Factor Direct Assignment
         guard let parsed = parse(value) else { return nil }
 
         switch parsed.type {
         case .totp:
+            // TOTP specifications restrict execution windows to manageable limits
             guard (10...300).contains(parsed.period) else { return nil }
+            
+            // Invokes the compiler-verified TOTP initializer pathway natively without casting parameters
             self.init(
                 with: parsed.issuer,
                 accountName: parsed.account,
@@ -167,6 +219,7 @@ public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
                 )
             )
         case .hotp:
+            // Invokes the compiler-verified HOTP initializer pathway natively without casting parameters
             self.init(
                 with: parsed.issuer,
                 accountName: parsed.account,
@@ -181,8 +234,12 @@ public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
         }
     }
 
-    /// Decodes an instance from a decoder (e.g., from JSON).
-    /// - Parameter decoder: The decoder to read data from.
+    // MARK: - Decentralized Decodable Serialization
+
+    /// Decodes an encapsulated storage configuration matrix block back into a valid dynamic `OTPAuthenticator` record instance.
+    ///
+    /// - Parameter decoder: The runtime input storage decoding abstraction container target.
+    /// - Throws: An explicit `DecodingError` verification crash if property dependencies break structural validation mapping patterns.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try container.decode(String.self, forKey: .id)
@@ -193,8 +250,10 @@ public struct OTPAuthenticator: AuthenticatorDescriptor, Sendable {
         self.hotp = try container.decodeIfPresent(HOTPFactorInfo.self, forKey: .hotp)
     }
 
-    /// Encodes the instance into an encoder (e.g., for JSON serialization).
-    /// - Parameter encoder: The encoder to write data to.
+    /// Encodes this authentication factor structure safely into an isolated persistent payload destination stream.
+    ///
+    /// - Parameter encoder: The targeted execution storage serialization system engine layer.
+    /// - Throws: An explicit encoding exception type error if dynamic fields fail schema constraint validations.
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)

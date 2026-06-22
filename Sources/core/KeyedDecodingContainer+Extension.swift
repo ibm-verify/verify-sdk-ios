@@ -26,7 +26,7 @@ extension KeyedDecodingContainer {
             }
         }
         
-        throw DecodingError.typeMismatch(T.self, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Invalid key for CodingKeys"))
+        throw DecodingError.typeMismatch(T.self, DecodingError.Context(codingPath: self.codingPath, debugDescription: String(localized: "Invalid key for CodingKeys")))
     }
     
     /// Decodes a value of the given type for the given key, if present.

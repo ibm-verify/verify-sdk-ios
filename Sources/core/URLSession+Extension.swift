@@ -11,7 +11,6 @@ import OSLog
 
 private let logger = Logger(subsystem: "Core", category: "Networking")
 
-
 // MARK: Enums
 
 /// An error that occurs during URLSession operations.
@@ -23,14 +22,17 @@ public enum URLSessionError: Error, Equatable {
     ///   - rhs: A value to compare.
     /// - Returns: A Boolean result.
     public static func == (lhs: URLSessionError, rhs: URLSessionError) -> Bool {
-        guard type(of: lhs) == type(of: rhs) else { return false }
-            let error1 = lhs as NSError
-            let error2 = rhs as NSError
-            return error1.domain == error2.domain && error1.code == error2.code
+        switch (lhs, rhs) {
+        case (.unknown, .unknown), (.unauthenticated, .unauthenticated), (.parsingFailed, .parsingFailed), (.invalidResource, .invalidResource):
+            return true
+        case let (.transportFailed(lhsError), .transportFailed(rhsError)):
+            return (lhsError as NSError).domain == (rhsError as NSError).domain && (lhsError as NSError).code == (rhsError as NSError).code
+        case let (.invalidResponse(lhsCode, lhsDesc), .invalidResponse(rhsCode, rhsDesc)):
+            return lhsCode == rhsCode && lhsDesc == rhsDesc
+        default:
+            return false
+        }
     }
-    
-    /// The response data was unexpectedly `nil`.
-    case noData
     
     /// Unknown response returned from resource.
     case unknown
@@ -38,10 +40,10 @@ public enum URLSessionError: Error, Equatable {
     /// The resource requires an authenticated credential.
     case unauthenticated
     
-    /// An error occured establishing the networking connection.
+    /// An error occurred establishing the networking connection.
     case transportFailed(Error)
     
-    /// Parsing error occurred during encoding or decodong.
+    /// Parsing error occurred during encoding or decoding.
     case parsingFailed
     
     /// The resource returned an error.
@@ -59,39 +61,18 @@ extension URLSessionError: LocalizedError {
     /// The localized error description.
     public var errorDescription: String? {
         switch self {
-        case .noData:
-            return NSLocalizedString(
-                "The response data was unexpectedly nil.",
-                comment: "No Data"
-            )
         case .unknown:
-            return NSLocalizedString(
-                "Unknown response returned from endpoint.",
-                comment: "Unknown"
-            )
+            return NSLocalizedString("Unknown response returned from endpoint.", comment: "Unknown")
         case .unauthenticated:
-            return NSLocalizedString(
-                "The endpoint requires an authenticated credential.",
-                comment: "Unauthenticated"
-            )
-        
+            return NSLocalizedString("The endpoint requires an authenticated credential.", comment: "Unauthenticated")
         case .transportFailed(let error):
-            return NSLocalizedString(
-                "An error occured establishing the networking connection.\(error.localizedDescription)",
-                comment: "Transport Failed"
-            )
+            return NSLocalizedString("An error occurred establishing the networking connection.\(error.localizedDescription)", comment: "Transport Failed")
         case .parsingFailed:
-            return NSLocalizedString(
-                "Parsing error occurred during encoding or decodong.",
-                comment: "Parsing Failed"
-            )
+            return NSLocalizedString("Parsing error occurred during encoding or decoding.", comment: "Parsing Failed")
         case .invalidResource:
-            return NSLocalizedString(
-                "The resource returned an error.",
-                comment: "Invalid Resource"
-            )
+            return NSLocalizedString("The resource returned an error.", comment: "Invalid Resource")
         case .invalidResponse(let statusCode, let description):
-            return NSLocalizedString(String(statusCode), comment: description)
+            return "\(statusCode): \(description)"
         }
     }
 }
@@ -105,49 +86,42 @@ var acceptableStatusCodes: Range<Int> { 200..<400 }
 /// - Parameter params: The parameters to apply.
 /// - Returns: The encoded string..
 public func urlEncode(from params: [String: Any]) -> String {
-    var components: [(String, String)] = []
-
-    for key in params.keys.sorted(by: <) {
-        let value = params[key]!
-        components += queryComponents(fromKey: key, value: value)
+    var components: [String] = []
+    components.reserveCapacity(params.count) // Allocate memory once
+    
+    // Iterate the key-value pairs directly, sorting by the key
+    for (key, value) in params.sorted(by: { $0.key < $1.key }) {
+        appendQueryComponents(fromKey: key, value: value, to: &components)
     }
-
-    return components.map { "\($0)=\($1)" }.joined(separator: "&")
+    
+    return components.joined(separator: "&")
 }
 
 /// Returns a percent-escaped, URL encoded query string components from a key-value pair.
 /// - Parameter key: The key of the query component.
 /// - Parameter value: The value of the query component.
 /// - Returns: The percent-escaped, URL encoded query string components.
-private func queryComponents(fromKey key: String, value: Any) -> [(String, String)] {
-    var components: [(String, String)] = []
-
+private func appendQueryComponents(fromKey key: String, value: Any, to components: inout [String]) {
     if let dictionary = value as? [String: Any] {
-        for (nestedKey, value) in dictionary {
-            components += queryComponents(fromKey: "\(key)[\(nestedKey)]", value: value)
+        for (nestedKey, nestedValue) in dictionary {
+            appendQueryComponents(fromKey: "\(key)[\(nestedKey)]", value: nestedValue, to: &components)
         }
     }
     else if let array = value as? [Any] {
-        for value in array {
-            components += queryComponents(fromKey: "\(key)[]", value: value)
+        for arrayValue in array {
+            appendQueryComponents(fromKey: "\(key)[]", value: arrayValue, to: &components)
         }
     }
-    else if let value = value as? NSNumber {
-        if value.isBool {
-            components.append((key.urlFormEncodedString, value.boolValue ? "1" : "0"))
-        }
-        else {
-            components.append((key.urlFormEncodedString, "\(value)".urlFormEncodedString))
-        }
+    else if let number = value as? NSNumber {
+        let stringValue = number.isBool ? (number.boolValue ? "1" : "0") : "\(number)".urlFormEncodedString
+        components.append("\(key.urlFormEncodedString)=\(stringValue)")
     }
     else if let bool = value as? Bool {
-        components.append((key.urlFormEncodedString, bool ? "1" : "0"))
+        components.append("\(key.urlFormEncodedString)=\(bool ? "1" : "0")")
     }
     else {
-        components.append((key.urlFormEncodedString, "\(value)".urlFormEncodedString))
+        components.append("\(key.urlFormEncodedString)=\("\(value)".urlFormEncodedString)")
     }
-
-    return components
 }
 
 
@@ -155,11 +129,16 @@ private func queryComponents(fromKey key: String, value: Any) -> [(String, Strin
 
 /// A HTTP resource contains a `URLRequest` and the ability to parse the response as a generic type.
 public struct HTTPResource<T> {
-    /// Represents information about the request.
-    var request: URLRequest
+    /// Represents the URL request.
+    public let request: URLRequest
     
-    /// A function type that attempts to parse the response payload into a generic type.
-    var parse: (Data?, URLResponse?) -> Result<T, Error>
+    /// Parses a response payload into a generic type.
+    ///
+    /// - Parameters:
+    ///   - data: Raw response payload. For `204 No Content`, this will be empty `Data()`.
+    ///   - response: The non-optional response returned from `URLSession`.
+    /// - Returns: Parsed result.
+    public let parse: (Data, URLResponse) -> Result<T, Error>
     
     // MARK: - Initializers
     
@@ -174,22 +153,46 @@ public struct HTTPResource<T> {
     /// - Parameter queryParams: A dictionary of query items to append to the URL.
     /// - Parameter parse: A function type to transform `T`.
     /// - Returns: A `Result` value that represents either a success or a failure, including an associated value in each case.
-    public init(_ method: method = .get, url: URL, accept: ContentType? = nil, contentType: ContentType? = nil, body: Data? = nil, headers: [String: String]? = [:], timeOutInterval: TimeInterval = 60, queryParams: [String: String] = [:], parse: @escaping (Data?, URLResponse?) -> Result<T, Error>) {
-        
-        var requestUrl: URL
+    public init(
+        _ method: HTTPMethod = .get,
+        url: URL,
+        accept: HTTPContentType? = nil,
+        contentType: HTTPContentType? = nil,
+        body: Data? = nil,
+        headers: [String: String]? = [:],
+        timeOutInterval: TimeInterval = 60,
+        queryParams: [String: String] = [:],
+        parse: @escaping (Data, URLResponse) -> Result<T, Error>
+    ) {
+        var requestURL = url
         
         // Add the dictionary of query parameters to the URL.
-        if queryParams.isEmpty {
-            requestUrl = url
-        }
-        else {
-            var component = URLComponents(url: url, resolvingAgainstBaseURL: true)!
-            component.queryItems = component.queryItems ?? []
-            component.queryItems!.append(contentsOf: queryParams.map { URLQueryItem(name: $0.key, value: $0.value) })
-            requestUrl = component.url!
+        if !queryParams.isEmpty, var components = URLComponents(url: url, resolvingAgainstBaseURL: true) {
+            var items = components.queryItems ?? []
+            items.append(contentsOf: queryParams.map {
+                URLQueryItem(name: $0.key, value: $0.value)
+            })
+            components.queryItems = items
+            
+            if let resolvedURL = components.url {
+                requestURL = resolvedURL
+            }
         }
         
-        request = URLRequest(url: requestUrl)
+        var request = URLRequest(
+            url: requestURL,
+            cachePolicy: .useProtocolCachePolicy,
+            timeoutInterval: timeOutInterval
+        )
+        
+        request.httpMethod = method.rawValue
+        
+        // Add the additional headers.
+        if let headers {
+            for (key, value) in headers {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
         
         // Add the accept header.
         if let accept {
@@ -201,26 +204,20 @@ public struct HTTPResource<T> {
             request.setValue(contentType.rawValue, forHTTPHeaderField: "Content-Type")
         }
         
-        // Add the additional headers.
-        if let headers {
-            for (key, value) in headers {
-                request.setValue(value, forHTTPHeaderField: key)
-            }
-        }
-        
-        request.timeoutInterval = timeOutInterval
-        request.httpMethod = method.rawValue
-        
-        // Body property set last because of this issue: https://bugs.swift.org/browse/SR-6687
+        // Body must be set last, refer: https://bugs.swift.org/browse/SR-6687
         request.httpBody = body
 
+        self.request = request
         self.parse = parse
     }
     
     /// Creates a new `HTTPResource` from a `URLRequest`.
-    /// - Parameter method: A URL request object that provides request-specific information such as the URL, cache policy, request type, and body data or body stream.
+    /// - Parameter request: A URL request object that provides request-specific information such as the URL, cache policy, request type, and body data or body stream.
     /// - Parameter parse: A function type  to transforms `T`.
-    public init(request: URLRequest, parse: @escaping (Data?, URLResponse?) -> Result<T, Error>) {
+    public init(
+            request: URLRequest,
+            parse: @escaping (Data, URLResponse) -> Result<T, Error>
+    ) {
         self.request = request
         self.parse = parse
     }
@@ -231,15 +228,18 @@ public struct HTTPResource<T> {
     /// - Parameter transform: A mapping closure. `transform` accepts an element of this sequence as its parameter and returns a transformed value of the same or of a different type.
     /// - Returns: A `HTTPResource` containing the transformed elements of this sequence.
     public func map<V>(_ transform: @escaping (T) -> V) -> HTTPResource<V> {
-        return HTTPResource<V>(request: request, parse: { data, response in
-            self.parse(data, response).map(transform)
-        })
+        HTTPResource<V>(
+            request: request,
+            parse: { data, response in
+                self.parse(data, response).map(transform)
+            }
+        )
     }
 }
 
 // MARK: Extensions
 
-extension HTTPResource where T == () {
+extension HTTPResource where T == Void {
     /// Creates a new `HTTPResource` without a parse transformation function.
     /// - Parameter method: The HTTP request method.
     /// - Parameter url: The URL of the request.
@@ -249,148 +249,251 @@ extension HTTPResource where T == () {
     /// - Parameter headers: A dictionary of additional HTTP header fields for a request.
     /// - Parameter timeOutInterval: The timeout interval for the request, in seconds. The default is 60.0.
     /// - Parameter queryParams: A dictionary of query items to append to the URL.
-    public init(_ method: method = .get, url: URL, accept: ContentType? = nil, contentType: ContentType? = nil, body: Data? = nil, headers: [String: String] = [:],  timeOutInterval: TimeInterval = 60, queryParams: [String: String] = [:]) {
-        self.init(method, url: url, accept: accept, contentType: contentType, body: body, headers: headers, timeOutInterval: timeOutInterval, queryParams: queryParams, parse: { _, _ in .success(()) })
+    public init(
+        _ method: HTTPMethod = .get,
+        url: URL,
+        accept: HTTPContentType? = nil,
+        contentType: HTTPContentType? = nil,
+        body: Data? = nil,
+        headers: [String: String] = [:],
+        timeOutInterval: TimeInterval = 60,
+        queryParams: [String: String] = [:]
+    ) {
+        self.init(
+            method,
+            url: url,
+            accept: accept,
+            contentType: contentType,
+            body: body,
+            headers: headers,
+            timeOutInterval: timeOutInterval,
+            queryParams: queryParams
+        ) { _, _ in
+            .success(())
+        }
     }
 }
 
 extension HTTPResource where T: Decodable {
-    /// Creates a new `HTTPResource` for JSON operations that have an optional request body.
-    /// - Parameter method: The HTTP request method.
-    /// - Parameter url: The URL of the request.
-    /// - Parameter accepts: The content type for the `Accept` header.  Default `application/json`.
-    /// - Parameter contentType: The content type for the `Content-Type` header.  Default `application/json`.
-    /// - Parameter body: The JSON data sent as the message body of a request, such as for an HTTP POST request.
-    /// - Parameter headers: A dictionary of additional HTTP header fields for a request.
-    /// - Parameter timeOutInterval: The timeout interval for the request, in seconds. The default is 60.0.
-    /// - Parameter queryParams: A dictionary of query items to append to the URL.
-    /// - Parameter decoder: A deccoder used for decoding `T`.  Default is `JSONDecoder`.
-    public init(json method: method, url: URL, accept: ContentType = .json,  contentType: ContentType = .json, body: Data? = nil, headers: [String: String] = [:], timeOutInterval: TimeInterval = 60, queryParams: [String: String] = [:], decoder: JSONDecoder = JSONDecoder()) {
-        self.init(method, url: url, accept: accept, contentType: contentType, body: body, headers: headers, timeOutInterval: timeOutInterval, queryParams: queryParams) { data, _ in
-            return Result {
-                guard let data = data else {
-                    throw URLSessionError.noData
+    
+    /// Creates a new `HTTPResource` for JSON operations with an optional raw body.
+    ///
+    /// - Parameters:
+    ///   - method: The HTTP request method.
+    ///   - url: The target URL.
+    ///   - accept: The `Accept` header value. Defaults to JSON.
+    ///   - contentType: The `Content-Type` header value. Defaults to JSON.
+    ///   - body: Optional raw request body.
+    ///   - headers: Additional HTTP headers.
+    ///   - timeOutInterval: Timeout in seconds.
+    ///   - queryParams: Query items appended to the URL.
+    ///   - decoder: JSON decoder used to decode the response.
+    public init(
+        json method: HTTPMethod,
+        url: URL,
+        accept: HTTPContentType = .json,
+        contentType: HTTPContentType = .json,
+        body: Data? = nil,
+        headers: [String: String] = [:],
+        timeOutInterval: TimeInterval = 60,
+        queryParams: [String: String] = [:],
+        decoder: JSONDecoder = JSONDecoder()
+    ) {
+        self.init(
+            method,
+            url: url,
+            accept: accept,
+            contentType: contentType,
+            body: body,
+            headers: headers,
+            timeOutInterval: timeOutInterval,
+            queryParams: queryParams
+        ) { data, _ in
+            Result {
+                do {
+                    return try decoder.decode(T.self, from: data)
                 }
-                
-                return try decoder.decode(T.self, from: data)
+                catch {
+                    logger.error("HTTPResource: Decoding failed - \(error.localizedDescription)")
+                    throw URLSessionError.parsingFailed
+                }
             }
         }
     }
 
-    /// Creates a new `HTTPResource` for JSON operations with an encodable body.
-    /// - Parameter method: The HTTP request method.
-    /// - Parameter url: The URL of the request.
-    /// - Parameter accepts: The content type for the `Accepts` header.  Default `application/json`.
-    /// - Parameter body: The data sent as the message body of a request, such as for an HTTP POST.
-    /// - Parameter headers: A dictionary of additional HTTP header fields for a request.
-    /// - Parameter timeOutInterval: The timeout interval for the request, in seconds. The default is 60.0.
-    /// - Parameter queryParams: A dictionary of query items to append to the URL.
-    /// - Parameter decoder: A deccoder used for decoding `T`.  Default is `JSONDecoder`.
-    /// - Parameter encoder: A encoder used for encoding `T`.  Default is `JSONEncoder`.
-    public init<V: Encodable>(json method: method, url: URL, accept: ContentType = .json, body: V? = nil, headers: [String: String] = [:], timeOutInterval: TimeInterval = 60, queryParams: [String: String] = [:], decoder: JSONDecoder = JSONDecoder(), encoder: JSONEncoder = JSONEncoder()) {
-        let value = body.map { try! encoder.encode($0) }
+    /// Creates a new `HTTPResource` for JSON operations with an encodable request body.
+    ///
+    /// - Parameters:
+    ///   - method: The HTTP request method.
+    ///   - url: The target URL.
+    ///   - accept: The `Accept` header value. Defaults to JSON.
+    ///   - body: Encodable request body.
+    ///   - headers: Additional HTTP headers.
+    ///   - timeOutInterval: Timeout in seconds.
+    ///   - queryParams: Query items appended to the URL.
+    ///   - decoder: JSON decoder used for decoding responses.
+    ///   - encoder: JSON encoder used for encoding request bodies.
+    public init<V: Encodable>(
+        json method: HTTPMethod,
+        url: URL,
+        accept: HTTPContentType = .json,
+        body: V? = nil,
+        headers: [String: String] = [:],
+        timeOutInterval: TimeInterval = 60,
+        queryParams: [String: String] = [:],
+        decoder: JSONDecoder = JSONDecoder(),
+        encoder: JSONEncoder = JSONEncoder()
+    ) {
+        let encodedBody: Data?
         
-        self.init(method, url: url, accept: accept, contentType: .json, body: value, headers: headers, timeOutInterval: timeOutInterval, queryParams: queryParams) { data, _ in
-            return Result {
-                guard let data = data else {
-                    throw URLSessionError.noData
-                }
-                
-                return try decoder.decode(T.self, from: data)
-            }
+        do {
+            encodedBody = try body.map { try encoder.encode($0) }
         }
+        catch {
+            logger.error("HTTPResource: Failed to encode request body - \(error.localizedDescription)")
+            encodedBody = nil
+        }
+        
+        self.init(
+            json: method,
+            url: url,
+            accept: accept,
+            contentType: .json,
+            body: encodedBody,
+            headers: headers,
+            timeOutInterval: timeOutInterval,
+            queryParams: queryParams,
+            decoder: decoder
+        )
     }
 }
 
-// MARK: - URLSession Extension
 extension URLSession {
-    /// Creates a task that retrieves the contents of the specified URL, then calls a handler upon completion.
-    /// - Parameter resource: The `HTTPResource` containing the request.
-    /// - Parameter completionHandler: The completion handler to call when the load request is complete.
-    /// - Returns: The new session data task.
+    /// Creates a task that retrieves the contents of the specified URL, logs the transaction, and parses the response.
+    ///
+    /// This method performs the network request asynchronously, tracks latency, logs request/response details (with detailed body logging in DEBUG builds), and validates the HTTP status code. If the status code is unacceptable, it attempts to extract a meaningful error description from the payload.
+    ///
+    /// - Parameters:
+    ///   - resource: The `HTTPResource` containing the request configuration and parsing logic.
+    /// - Returns: The parsed response of generic type `T`.
+    /// - Throws: `URLSessionError` for network failures, invalid responses, or unauthenticated requests.
     @discardableResult
     public func dataTask<T>(for resource: HTTPResource<T>) async throws -> T {
+        // Cache computationally expensive or repetitive properties
+        let requestId = UUID()
+        let urlString = resource.request.url?.absoluteString ?? "N/A"
+        let method = resource.request.httpMethod ?? "N/A"
+        
         logger.info("URLSession.dataTask - ENTRY")
         
         defer {
             logger.info("URLSession.dataTask - EXIT")
         }
         
-        // Generate a unique identifier for this request-response pair.
-        let requestId = UUID()
-        let startTime = Date() // Capture the start time for calculating request latency.
-
-        logger.debug("⬆️ Request [\(requestId.uuidString)]: Method: \(resource.request.httpMethod ?? "N/A"), URL: \(resource.request.url?.absoluteString ?? "N/A")")
+        logger.debug("⬆️ Request [\(requestId)]: Method: \(method), URL: \(urlString)")
         
         #if DEBUG
         if let headers = resource.request.allHTTPHeaderFields {
-            logger.debug("➡️ Request [\(requestId.uuidString)] Headers: \(headers)")
+            logger.debug("➡️ Request [\(requestId)] Headers: \(headers)")
         }
         
-        if let data = resource.request.httpBody, let body = String(data: data, encoding: .utf8) {
-            logger.debug("➡️ Request [\(requestId.uuidString)] Body: \(body)")
+        if let data = resource.request.httpBody {
+            // String(decoding:as:) is highly optimized and avoids optional allocation
+            logger.debug("➡️ Request [\(requestId)] Body: \(String(decoding: data, as: UTF8.self))")
         }
         #endif
         
-        // Perform the actual network request. `async let` allows `data` and `response` to be fetched concurrently if possible, but `try await` will wait for both to complete.
-        async let (data, response) = try await self.data(for: resource.request)
-
-        let resolvedData: Data
-        let resolvedResponse: URLResponse
-
-        // Use a do-catch block to specifically handle errors that occur during the network call itself (e.g., network connectivity issues, DNS lookup failures).
+        // Use Date() for latency tracking
+        let startTime = Date()
+        
+        let data: Data
+        let response: URLResponse
+        
         do {
-            (resolvedData, resolvedResponse) = try await (data, response)
+            // Direct suspension point — highly performant, no background task overhead
+            (data, response) = try await self.data(for: resource.request)
         }
         catch {
-            let latency = Date().timeIntervalSince(startTime) // Calculate latency even for errors.
-            logger.error("❌ Network Error [\(requestId.uuidString)]: URL: \(resource.request.url?.absoluteString ?? "N/A"), Latency: \(String(format: "%.3f", latency))s, Error: \(error.localizedDescription)")
+            let latency = Date().timeIntervalSince(startTime)
+            logger.error("❌ Network Error [\(requestId)]: URL: \(urlString), Latency: \(String(format: "%.3f", latency))s, Error: \(error.localizedDescription)")
             
-            throw error // Re-throw the original network error.
+            throw error
         }
         
         let latency = Date().timeIntervalSince(startTime)
         
-        guard let httpResponse = resolvedResponse as? HTTPURLResponse else {
-            logger.error("❌ Response [\(requestId.uuidString)] Error: Unknown response type for URL: \(resource.request.url?.absoluteString ?? "N/A"), Latency: \(String(format: "%.3f", latency))s")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            logger.error("❌ Response [\(requestId)] Error: Unknown response type for URL: \(urlString), Latency: \(String(format: "%.3f", latency))s")
             throw URLSessionError.unknown
         }
         
-        // Log the basic response information: status code, URL, and latency.
-        logger.info("⬇️ Response [\(requestId.uuidString)]: Status: \(httpResponse.statusCode), URL: \(httpResponse.url?.absoluteString ?? "N/A"), Latency: \(String(format: "%.3f", latency))s")
-              
+        let statusCode = httpResponse.statusCode
+        logger.info("⬇️ Response [\(requestId)]: Status: \(statusCode), URL: \(urlString), Latency: \(String(format: "%.3f", latency))s")
+        
         #if DEBUG
         if let headers = httpResponse.allHeaderFields as? [String: Any] {
-            logger.debug("⬅️ Response [\(requestId.uuidString)] Headers: \(headers)")
+            logger.debug("⬅️ Response [\(requestId)] Headers: \(headers)")
         }
         
-        if let body = String(data: resolvedData, encoding: .utf8) {
-            logger.debug("⬅️ Response [\(requestId.uuidString)] Body: \(body)")
+        if !data.isEmpty {
+            let bodyString = String(decoding: data, as: UTF8.self)
+            logger.debug("⬅️ Response [\(requestId)] Body: \(bodyString)")
         }
         #endif
         
-        guard acceptableStatusCodes.contains(httpResponse.statusCode) else {
-            let description = try await String(decoding: data, as: UTF8.self)
+        guard acceptableStatusCodes.contains(statusCode) else {
+            let description = extractErrorDescription(from: data)
             
-            logger.error("❌ Response [\(requestId.uuidString)] Error: Unacceptable Status Code: \(httpResponse.statusCode) for URL: \(httpResponse.url?.absoluteString ?? "N/A"), Description: \(description)")
+            logger.error("❌ Response [\(requestId)] Error: Unacceptable Status Code: \(statusCode) for URL: \(urlString), Description: \(description)")
             
-            if httpResponse.statusCode == 401 {
+            if statusCode == 401 {
                 throw URLSessionError.unauthenticated
             }
             
-            throw URLSessionError.invalidResponse(statusCode: httpResponse.statusCode, description: description)
+            throw URLSessionError.invalidResponse(statusCode: statusCode, description: description)
         }
         
-        logger.info("✅ Success [\(requestId.uuidString)]: Parsed data for URL: \(resource.request.url?.absoluteString ?? "N/A")")
+        logger.info("✅ Success [\(requestId)]: Parsed data for URL: \(urlString)")
         
-        return try await resource.parse(data, httpResponse).get()
+        return try resource.parse(data, httpResponse).get()
+    }
+    
+    /// Extracts an error description from the response data efficiently.
+    ///
+    /// It first attempts a lightweight JSON Serialization to find `error_description` or `messageDescription`.
+    /// If neither is found or the data is not valid JSON, it falls back to a raw UTF-8 string conversion.
+    ///
+    /// - Parameter data: The raw error payload from the server.
+    /// - Returns: A string representing the extracted error message.
+    private func extractErrorDescription(from data: Data) -> String {
+        // Immediately return if there is no payload to parse, saving processing time
+        guard !data.isEmpty else { return "Empty Response" }
+        
+        // JSONSerialization is the fastest method for shallow, top-level dictionary lookups
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            
+            if let errorDescription = json["message"] as? String {
+                return errorDescription
+            }
+            
+            if let errorDescription = json["error_description"] as? String {
+                return errorDescription
+            }
+            
+            if let errorDescription = json["messageDescription"] as? String {
+                return errorDescription
+            }
+        }
+        
+        // Fallback using the high-performance decoding initializer
+        return String(decoding: data, as: UTF8.self)
     }
 }
 
 // MARK: - Enums
 /// HTTP method definitions.
 /// See [https://tools.ietf.org/html/rfc7231#section-4.3](https://tools.ietf.org/html/rfc7231#section-4.3)
-public enum method: String {
+public enum HTTPMethod: String {
     /// The GET method requests transfer of a current selected representation for the target resource.
     case get = "GET"
 
@@ -408,7 +511,7 @@ public enum method: String {
 }
 
 /// The `ContentType` is used to indicate the media type of the resource.
-public enum ContentType: String {
+public enum HTTPContentType: String {
     /// JSON format.
     case json = "application/json"
     /// XML format.

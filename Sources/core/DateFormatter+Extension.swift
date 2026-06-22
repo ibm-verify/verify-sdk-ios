@@ -14,7 +14,7 @@ extension DateFormatter {
     /// ```
     ///
     /// Supports `yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ` date strings.
-    public static let iso8061FormatterBehavior: DateFormatter = {
+    public static let iso8601FormatterBehavior: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ"
         formatter.calendar = Calendar(identifier: .iso8601)

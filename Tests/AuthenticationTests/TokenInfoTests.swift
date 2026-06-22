@@ -25,7 +25,7 @@ class TokenInfoTests: XCTestCase {
     func testDecodeTokenExpiresIn() throws {
         // Given
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(.iso8601FormatterBehavior)
         
         // Where
         let token = try decoder.decode(TokenInfo.self, from: tokenJson.data(using: .utf8)!)
@@ -58,7 +58,7 @@ class TokenInfoTests: XCTestCase {
     func testDecodeTokenExpiresOn() throws {
         // Given
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(.iso8601FormatterBehavior)
         
         // Where
         let token = try decoder.decode(TokenInfo.self, from: tokenJson4.data(using: .utf8)!)
@@ -72,7 +72,7 @@ class TokenInfoTests: XCTestCase {
     func testDecodeTokenBasic() throws {
         // Given
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(.iso8601FormatterBehavior)
         
         // Where
         let token = try decoder.decode(TokenInfo.self, from: tokenJson1.data(using: .utf8)!)
@@ -89,7 +89,7 @@ class TokenInfoTests: XCTestCase {
     func testDecodeTokenAdditionalData() throws {
         // Given
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(DateFormatter.iso8601FormatterBehavior)
         
         // Where
         let token = try decoder.decode(TokenInfo.self, from: tokenJson3.data(using: .utf8)!)
@@ -103,7 +103,7 @@ class TokenInfoTests: XCTestCase {
         XCTAssertEqual(token.additionalData.count, 2)
         
         // Test expiresOn date.
-        let dateFormatter = DateFormatter.iso8061FormatterBehavior
+        let dateFormatter = DateFormatter.iso8601FormatterBehavior
         let expiresOn = dateFormatter.date(from: "2022-12-30T11:30:31.340Z")
         XCTAssertEqual(token.expiresOn, expiresOn!)
     }
@@ -112,7 +112,7 @@ class TokenInfoTests: XCTestCase {
     func testTokenExpired() throws {
         // Given
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(.iso8601FormatterBehavior)
         
         // Where
         let token = try decoder.decode(TokenInfo.self, from: tokenJson.data(using: .utf8)!)
@@ -126,7 +126,7 @@ class TokenInfoTests: XCTestCase {
     func testTokenShouldRefresh() throws {
         // Given
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(.iso8601FormatterBehavior)
         
         // Where
         let token = try decoder.decode(TokenInfo.self, from: tokenJson.data(using: .utf8)!)
@@ -140,7 +140,7 @@ class TokenInfoTests: XCTestCase {
     func testTokenIsEqual() throws {
         // Given
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(.iso8601FormatterBehavior)
         
         // Where
         let token1 = try decoder.decode(TokenInfo.self, from: tokenJson.data(using: .utf8)!)
@@ -154,7 +154,7 @@ class TokenInfoTests: XCTestCase {
     func testTokenHeader() throws {
         // Given
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .formatted(.iso8061FormatterBehavior)
+        decoder.dateDecodingStrategy = .formatted(.iso8601FormatterBehavior)
         let headerValue = "Bearer a1b2c3d4"
         
         // Where
@@ -217,14 +217,120 @@ class TokenInfoTests: XCTestCase {
         
         // Then
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .formatted(DateFormatter.iso8061FormatterBehavior)
+        encoder.dateEncodingStrategy = .formatted(DateFormatter.iso8601FormatterBehavior)
         encoder.outputFormatting = .prettyPrinted
         
         let data = try encoder.encode(token)
         print(String(data: data, encoding: .utf8)!)
     }
-}
+    
+    /// Test the `expiresOn` decoder with an Apple reference
+    func testDecodeExpiresOnAppleReferenceDate() throws {
+        let json = """
+        {
+            "accessToken": "abc",
+            "refreshToken": "def",
+            "expiresIn": 3600,
+            "token_type": "bearer",
+            "expires_on": 803186654.91093802
+        }
+        """
 
+        let token = try JSONDecoder().decode(
+            TokenInfo.self,
+            from: Data(json.utf8)
+        )
+
+        let expected = Date(timeIntervalSinceReferenceDate: 803186654.91093802)
+
+        XCTAssertEqual(
+            token.expiresOn.timeIntervalSince1970,
+            expected.timeIntervalSince1970,
+            accuracy: 0.001
+        )
+    }
+
+    /// Test the `expiresOn` decoder with an ISO8601 reference
+    func testDecodeExpiresOnISO8601String() throws {
+        let json = """
+        {
+            "accessToken": "abc",
+            "refreshToken": "def",
+            "expiresIn": 3600,
+            "token_type": "bearer",
+            "expires_on": "2023-01-03T06:32:51.632Z"
+        }
+        """
+
+        let token = try JSONDecoder().decode(
+            TokenInfo.self,
+            from: Data(json.utf8)
+        )
+
+        let expected = DateFormatter.iso8601FormatterBehavior.date(
+            from: "2023-01-03T06:32:51.632Z"
+        )
+
+        XCTAssertNotNil(expected)
+
+        XCTAssertEqual(
+            token.expiresOn.timeIntervalSince1970,
+            expected!.timeIntervalSince1970,
+            accuracy: 0.001
+        )
+    }
+
+    /// Test the `expiresOn` decoder with a fallback to `expiresIn`.
+    func testDecodeExpiresOnMissingValueFallsBackToExpiresIn() throws {
+        let before = Date()
+
+        let json = """
+        {
+            "accessToken": "abc",
+            "refreshToken": "def",
+            "expiresIn": 120,
+            "token_type": "bearer"
+        }
+        """
+
+        let token = try JSONDecoder().decode(
+            TokenInfo.self,
+            from: Data(json.utf8)
+        )
+
+        let after = Date()
+
+        XCTAssertGreaterThanOrEqual(
+            token.expiresOn,
+            before.addingTimeInterval(119)
+        )
+
+        XCTAssertLessThanOrEqual(
+            token.expiresOn,
+            after.addingTimeInterval(121)
+        )
+    }
+    
+    /// Test `expoiresOn` with an invalid string.
+    func testDecodeExpiresOnInvalidStringThrows() throws {
+        let json = """
+        {
+            "accessToken": "abc",
+            "refreshToken": "def",
+            "expiresIn": 3600,
+            "token_type": "bearer",
+            "expires_on": "banana"
+        }
+        """
+
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                TokenInfo.self,
+                from: Data(json.utf8)
+            )
+        )
+    }
+}
 
 let tokenJson = """
 {

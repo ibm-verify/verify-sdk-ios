@@ -27,7 +27,7 @@ public struct HOTPFactorInfo: Factor, Sendable {
     public let id: String
     
     public var displayName: String {
-        "HMAC-based one-time password (HOTP)"
+        String(localized: "HMAC-based one-time password (HOTP)")
     }
     
     public var imageName: String {

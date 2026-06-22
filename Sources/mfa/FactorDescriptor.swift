@@ -131,7 +131,7 @@ extension FactorType: Codable {
             self = .userPresence(value)
         }
         else {
-            throw DecodingError.dataCorruptedError(forKey: .totp, in: container, debugDescription: "No valid factor type found.")
+            throw DecodingError.dataCorruptedError(forKey: .totp, in: container, debugDescription: String(localized: "No valid factor type found."))
         }
     }
     

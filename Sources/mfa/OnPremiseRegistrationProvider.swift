@@ -12,6 +12,14 @@ import LocalAuthentication
 public typealias OnPremiseRegistrationError = MFARegistrationError
 
 /// A mechanism for creating a multi-factor authenticator and associated factor enrollments for IBM Verify Access.
+///
+/// - Important:
+///   Transaction session persistence for on-premise authenticators depends on the IBM Security Verify Access Authentication Service session storage configuration. Session data may be stored in `DMap`, or `in-memory` storage.
+///
+///   In-memory storage does not persist registration session state across service restarts, which may interrupt enrollment or require the registration flow to restart.
+///
+///   For more information, see IBM documentation.
+/// [IBM Security Verify Access Advanced Properties](https://www.ibm.com/docs/en/sva/11.0.0?topic=configuration-advanced-properties#aac_advcfgprop__d251e2142__title__1)
 @MainActor
 public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
     public typealias Authenticator = OnPremiseAuthenticator
@@ -35,15 +43,15 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
             let result = try decoder.decode(RegistrationInfo.self, from: data)
             self.registrationInfo = result
 
-            if result.ignoreSSLCertificate {
-                // Set the URLSession for certificate pinning with ephemeral configuration
-                // to prevent cookie persistence across registrations.
-                self.urlSession = URLSession(configuration: .ephemeral, delegate: SelfSignedCertificateDelegate(), delegateQueue: nil)
-            }
-            else {
-                // Use ephemeral configuration to prevent cookie persistence.
-                self.urlSession = URLSession(configuration: .ephemeral)
-            }
+            // Set the URLSession for certificate pinning with ephemeral configuration to prevent cookie persistence across registrations.
+            self.urlSession = {
+                let configuration = URLSessionConfiguration.ephemeral
+                configuration.timeoutIntervalForRequest = 15
+                configuration.waitsForConnectivity = false
+                return URLSession(configuration: configuration,
+                                  delegate: result.ignoreSSLCertificate ? SelfSignedCertificateDelegate() : nil,
+                                  delegateQueue: nil)
+            }()
         }
         catch {
             // Re-throw the error as a more descriptive one with the original reason.
@@ -129,8 +137,9 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         do {
             self.initializationInfo = try await self.urlSession.dataTask(for: resource)
         }
-        catch let decodingError as DecodingError {
-            throw OnPremiseRegistrationError.dataDecodingFailed(reason: decodingError.localizedDescription)
+        catch _ as DecodingError {
+            // Provide user-friendly error message for backend configuration issues
+            throw OnPremiseRegistrationError.dataDecodingFailed(reason: String(localized: "Unable to complete registration. The server response was invalid or incomplete. Contact your administrator to review the service configuration."))
         }
         catch {
             throw OnPremiseRegistrationError.underlyingError(error: error)
@@ -163,7 +172,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
     public func enrollUserPresence(savePrivateKey: (SecKeyAddType) throws -> String) async throws {
         guard canEnrollUserPresence else {
-            throw OnPremiseRegistrationError.enrollmentFailed(reason: "User presence signature method not provided in metadata configuration.")
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: String(localized: "User presence signature method not provided in metadata configuration."))
         }
 
         let signature = (methodKey: "user_presence", subType: "userPresence")
@@ -174,16 +183,16 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
     public func enrollBiometric(savePrivateKey: (SecKeyAddType) throws -> String, context: LAContext? = nil, reason: String?) async throws {
         guard canEnrollBiometric else {
-            throw OnPremiseRegistrationError.enrollmentFailed(reason: "Biometric signature method not provided in metadata configuration.")
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: String(localized: "Biometric signature method not provided in metadata configuration."))
         }
 
         let context = context ?? LAContext()
-        let policy: LAPolicy = .deviceOwnerAuthenticationWithBiometrics
+        let policy: LAPolicy = .deviceOwnerAuthentication
         var error: NSError?
 
         // Hardware / permission pre-check
         guard context.canEvaluatePolicy(policy, error: &error) else {
-            let failureReason = error?.localizedDescription ?? "Biometry not available."
+            let failureReason = error?.localizedDescription ?? String(localized: "Biometry not available.")
             throw OnPremiseRegistrationError.biometryFailed(reason: failureReason)
         }
 
@@ -203,9 +212,9 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         case .touchID, .faceID:
             signature = ("fingerprint", "fingerprint")
         case .none:
-            throw OnPremiseRegistrationError.biometryFailed(reason: "No biometry type available after authentication.")
+            throw OnPremiseRegistrationError.biometryFailed(reason: String(localized: "No biometry type available after authentication."))
         default:
-            throw OnPremiseRegistrationError.biometryFailed(reason: "Unsupported biometry type")
+            throw OnPremiseRegistrationError.biometryFailed(reason: String(localized: "Unsupported biometry type"))
         }
 
         // Delegate to shared logic
@@ -216,7 +225,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
     public func enrollOneTimePasscode() async throws -> OTPAuthenticator {
         guard canEnrollOneTimePasscode else {
-            throw OnPremiseRegistrationError.enrollmentFailed(reason: "One-time passcode not provided in metadata configuration.")
+            throw OnPremiseRegistrationError.enrollmentFailed(reason: String(localized: "One-time passcode not provided in metadata configuration."))
         }
 
         guard let initializationInfo = self.initializationInfo,
@@ -238,10 +247,6 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
         // Custom resource with error-aware parsing
         let resource = HTTPResource<TOTPResponse>(.get, url: totpUri, accept: .json, headers: headers) { data, response in
-            guard let data = data, !data.isEmpty else {
-                return Result.failure(OnPremiseRegistrationError.dataInitializationFailed)
-            }
-
             do {
                 let result = try JSONDecoder().decode(TOTPResponse.self, from: data)
 
@@ -289,12 +294,12 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         }
 
         guard let attributes = method.attributes else {
-            throw OnPremiseRegistrationError.invalidRegistrationData(reason: "Signature method '\(methodTitle)' has no attributes.")
+            throw OnPremiseRegistrationError.invalidRegistrationData(reason: String(localized: "Signature method '\(methodTitle)' has no attributes."))
         }
 
         // Resolve algorithm
         guard let preferredAlgorithm = SigningAlgorithm(from: attributes.algorithm) else {
-            throw OnPremiseRegistrationError.invalidAlgorithm(reason: "The resolved algorithm '\(attributes.algorithm)' is not valid.")
+            throw OnPremiseRegistrationError.invalidAlgorithm(reason: String(localized: "The resolved algorithm '\(attributes.algorithm)' is not valid."))
         }
 
         // Generate key pair
@@ -346,10 +351,6 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
         // 7. Create the resource to execute the request to enroll a signature factor and parse the result.
         let resource = HTTPResource<String>(.patch, url: url, accept: .json, contentType: .json, body: body, headers: headers) { data, response in
-            guard let _ = data else {
-                return Result.failure(OnPremiseRegistrationError.dataInitializationFailed)
-            }
-
             // Check if the response is an HTTPURLResponse and validate content-type
             if let httpResponse = response as? HTTPURLResponse {
                 // Get the content-type header (case-insensitive)
@@ -359,10 +360,10 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
                 // Note: Content-Type may include charset, e.g., "application/scim+json; charset=utf-8"
                 if let contentType = contentType, !contentType.lowercased().contains("application/scim+json") {
                     return Result.failure(OnPremiseRegistrationError.dataDecodingFailed(
-                        reason: """
+                        reason: String(localized: """
                         Unable to complete enrolment because the server returned an unexpected response. \
                         This may indicate that a firewall, proxy, or network security device is blocking or modifying the enrolment traffic. Contact your administrator if the problem persists.
-                        """
+                        """)
                     ))
                 }
             }
@@ -397,7 +398,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
 
         // 3. Determine account name locally to avoid mid-async mutation side-effects
         let resolvedAccountName = self.accountName.isEmpty
-            ? (token.additionalData["display_name"] as? String ?? "Not available")
+        ? (token.additionalData["display_name"] as? String ??  String(localized: "Not available"))
             : self.accountName
 
         // 4. Construct the authentication service to refresh the access token (updates tenant_id)
@@ -456,7 +457,7 @@ public class OnPremiseRegistrationProvider: MFARegistrationDescriptor {
         enum CodingKeys: String, CodingKey {
             case code
             case options
-            case uri = "details_url" // Maps "details_url" from JSON to "detailsURL"
+            case uri = "details_url"        // Maps "details_url" from JSON to "detailsURL"
             case version
             case clientId = "client_id"     // Maps "client_id" from JSON to "clientID"
         }

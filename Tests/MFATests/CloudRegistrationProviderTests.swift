@@ -554,7 +554,18 @@ class CloudRegistrationProviderTests: XCTestCase {
             XCTAssertTrue(error is URLSessionError)
 
             // Verify that our error is equal to what we expect
-            XCTAssertEqual(error as? URLSessionError, .invalidResponse(statusCode: 404, description: ""))
+            // The description should preserve the original JSON formatting from the file
+            if case .invalidResponse(let statusCode, let description) = error as? URLSessionError {
+                XCTAssertEqual(statusCode, 404)
+                // Verify the description contains the key fields from the JSON
+                XCTAssertTrue(description.contains("expiresIn"))
+                XCTAssertTrue(description.contains("accessToken"))
+                XCTAssertTrue(description.contains("a1b2c3"))
+                XCTAssertTrue(description.contains("refreshToken"))
+                XCTAssertTrue(description.contains("d4e5f6"))
+            } else {
+                XCTFail("Expected invalidResponse error")
+            }
         }
     }
 

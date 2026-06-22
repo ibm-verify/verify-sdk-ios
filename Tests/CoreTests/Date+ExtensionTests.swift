@@ -11,7 +11,7 @@ import XCTest
 final class DateFormatterExtensionsTests: XCTestCase {
 
     func testIso8061FormatterBehavior_Configuration() {
-        let formatter = DateFormatter.iso8061FormatterBehavior
+        let formatter = DateFormatter.iso8601FormatterBehavior
         
         // 1. Verify Format String
         XCTAssertEqual(formatter.dateFormat, "yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ")
@@ -27,7 +27,7 @@ final class DateFormatterExtensionsTests: XCTestCase {
     }
     
     func testIso8061FormatterBehavior_Encoding() {
-        let formatter = DateFormatter.iso8061FormatterBehavior
+        let formatter = DateFormatter.iso8601FormatterBehavior
         
         // Create a fixed date: 2026-04-22 15:00:00.123 UTC
         let components = DateComponents(
@@ -47,7 +47,7 @@ final class DateFormatterExtensionsTests: XCTestCase {
     }
     
     func testIso8061FormatterBehavior_Decoding() {
-        let formatter = DateFormatter.iso8061FormatterBehavior
+        let formatter = DateFormatter.iso8601FormatterBehavior
         let isoString = "2026-04-22T15:00:00.123Z"
         
         let date = formatter.date(from: isoString)
@@ -64,7 +64,7 @@ final class DateFormatterExtensionsTests: XCTestCase {
     }
     
     func testIso8061FormatterBehavior_InvalidInput() {
-        let formatter = DateFormatter.iso8061FormatterBehavior
+        let formatter = DateFormatter.iso8601FormatterBehavior
         let invalidString = "Not a date"
         
         let date = formatter.date(from: invalidString)
