@@ -49,21 +49,18 @@ public enum MFAAttributeInfo {
     }
 
     /// The flag to indicate if the device contains known jailbroken technique.
+    ///
+    /// Delegates to `JailbreakDetector` from the Core module, which evaluates
+    /// three independent heuristic signals: suspicious filesystem paths, sandbox
+    /// escape via an out-of-sandbox file write, and known jailbreak dynamic
+    /// libraries visible in the dyld image list.
+    ///
+    /// On the iOS Simulator all signals are suppressed and this property
+    /// returns `false` because the Simulator does not enforce the same sandbox
+    /// and filesystem boundaries as a physical device.
     public static var deviceInsecure: Bool {
         get {
-            #if targetEnvironment(simulator)
-                return false
-            #else
-                // Reading and writing in system directories (sandbox violation)
-                do {
-                    let path = "/private/" + UUID().uuidString
-                    try path.write(toFile: path, atomically: true, encoding: .utf8)
-                    try FileManager.default.removeItem(atPath: path)
-                    return true
-                } catch {
-                    return false
-                }
-            #endif
+            JailbreakDetector.check().hasCompromiseIndicators
         }
     }
 
@@ -175,7 +172,7 @@ public enum MFAAttributeInfo {
     /// - Remark: This value represents the latest [Github release version](https://github.com/ibm-security-verify/verify-sdk-ios/releases/tag).
     public static var frameworkVersion: String {
         get {
-            return "3.1.6"
+            return "3.1.7"
         }
     }
 

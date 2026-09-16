@@ -1,5 +1,28 @@
 Note: This is in reverse chronological order, so newer entries are added to the top.
 
+# v3.1.7
+16 September 2026
+
+### IBM Verify Core SDK for iOS
+* Added `JailbreakDetector` — a multi-signal heuristic type that evaluates three independent runtime indicators: suspicious jailbreak-related filesystem paths, sandbox escape via out-of-sandbox file write, and known jailbreak dynamic libraries in the dyld image list.
+* All device-specific checks are suppressed on the iOS Simulator; results are explicitly marked as unevaluated rather than falsely clean.
+* Increment version
+
+### IBM Verify MFA SDK for iOS
+* `MFAAttributeInfo.deviceInsecure` now delegates to `JailbreakDetector.check().hasCompromiseIndicators`, replacing the previous single-signal sandbox-escape check with the broader three-signal evaluation from Core.
+* Increment version
+
+### IBM Verify Authentication SDK for iOS
+* Increment version
+
+### IBM Verify Adaptive SDK for iOS
+* Increment version
+
+### IBM Verify FIDO2™ SDK for iOS
+* Increment version
+<br/>
+<br/>
+
 # v3.1.6
 15 June 2026
 
