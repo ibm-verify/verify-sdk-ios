@@ -4,12 +4,12 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 16 September 2026
 
 ### IBM Verify Core SDK for iOS
-* Added `JailbreakDetector` — a multi-signal heuristic type that evaluates three independent runtime indicators: suspicious jailbreak-related filesystem paths, sandbox escape via out-of-sandbox file write, and known jailbreak dynamic libraries in the dyld image list.
+* Added `JailbreakDetector` — a structural runtime integrity check that detects injected dynamic libraries by counting dyld images whose paths fall outside the application bundle and known system directories (`/System/`, `/usr/lib/`, `/Library/Caches/`). Any injected library (Frida, ElleKit, Cycript, etc.) is detected regardless of filename, making the check significantly harder to evade than name-based approaches.
 * All device-specific checks are suppressed on the iOS Simulator; results are explicitly marked as unevaluated rather than falsely clean.
 * Increment version
 
 ### IBM Verify MFA SDK for iOS
-* `MFAAttributeInfo.deviceInsecure` now delegates to `JailbreakDetector.check().hasCompromiseIndicators`, replacing the previous single-signal sandbox-escape check with the broader three-signal evaluation from Core.
+* `MFAAttributeInfo.deviceInsecure` now delegates to `JailbreakDetector.check().hasCompromiseIndicators`, replacing the previous single-signal sandbox-escape check with the structural dyld image anomaly check from Core.
 * Increment version
 
 ### IBM Verify Authentication SDK for iOS

@@ -47,20 +47,16 @@ class JailbreakDetectorTests: XCTestCase {
 
     // MARK: - Simulator signal suppression
 
-    /// Tests that all compromise signals are suppressed on the Simulator,
-    /// where sandbox and filesystem restrictions differ from a real device.
-    func testSimulatorSuppressesAllSignals() throws {
+    /// Tests that `unexpectedImageCount` is zero on the Simulator because the
+    /// check is skipped and the result is hard-coded to a clean baseline.
+    func testSimulatorSuppressesUnexpectedImageCount() throws {
         #if targetEnvironment(simulator)
         // Given, When
         let result = JailbreakDetector.check()
 
         // Then
-        XCTAssertFalse(result.suspiciousPaths,
-                       "suspiciousPaths should be false on the Simulator")
-        XCTAssertFalse(result.sandboxEscape,
-                       "sandboxEscape should be false on the Simulator")
-        XCTAssertFalse(result.suspiciousLibraries,
-                       "suspiciousLibraries should be false on the Simulator")
+        XCTAssertEqual(result.unexpectedImageCount, 0,
+                       "unexpectedImageCount should be 0 on the Simulator")
         #else
         throw XCTSkip("Simulator-only test")
         #endif
@@ -113,5 +109,84 @@ class JailbreakDetectorTests: XCTestCase {
         // Given, When, Then
         XCTAssertEqual(JailbreakDetector.Environment.device.rawValue, "device")
         XCTAssertEqual(JailbreakDetector.Environment.simulator.rawValue, "simulator")
+    }
+
+    // MARK: - Unexpected image count
+
+    /// Tests that a non-zero `unexpectedImageCount` is reflected in
+    /// `triggeredSignals` with the expected prefix and embedded count.
+    func testUnexpectedImageCountAppearsInTriggeredSignals() throws {
+        // Given — construct a result with a non-zero image count directly so
+        // the test is not tied to the runtime environment of the test host.
+        let result = JailbreakDetector.Result(
+            environment: .device,
+            unexpectedImageCount: 3
+        )
+
+        // When
+        let signals = result.triggeredSignals
+
+        // Then
+        XCTAssertTrue(
+            signals.contains("unexpected_images:3"),
+            "triggeredSignals must contain 'unexpected_images:3', got: \(signals)"
+        )
+    }
+
+    /// Tests that a non-zero `unexpectedImageCount` sets `hasCompromiseIndicators`.
+    func testUnexpectedImageCountNonZeroSetsCompromiseIndicator() throws {
+        // Given
+        let result = JailbreakDetector.Result(
+            environment: .device,
+            unexpectedImageCount: 1
+        )
+
+        // Then
+        XCTAssertTrue(result.hasCompromiseIndicators,
+                      "A non-zero unexpectedImageCount must set hasCompromiseIndicators")
+    }
+
+    /// Tests that a zero `unexpectedImageCount` does not set `hasCompromiseIndicators`.
+    func testUnexpectedImageCountZeroDoesNotSetCompromiseIndicator() throws {
+        // Given
+        let result = JailbreakDetector.Result(
+            environment: .device,
+            unexpectedImageCount: 0
+        )
+
+        // Then
+        XCTAssertFalse(result.hasCompromiseIndicators,
+                       "A zero unexpectedImageCount must not set hasCompromiseIndicators")
+    }
+
+    /// Tests that a zero `unexpectedImageCount` is absent from `triggeredSignals`.
+    func testUnexpectedImageCountZeroAbsentFromTriggeredSignals() throws {
+        // Given
+        let result = JailbreakDetector.Result(
+            environment: .device,
+            unexpectedImageCount: 0
+        )
+
+        // Then
+        XCTAssertFalse(
+            result.triggeredSignals.contains(where: { $0.hasPrefix("unexpected_images:") }),
+            "triggeredSignals must not contain an unexpected_images entry when count is 0"
+        )
+    }
+
+    /// Tests that `triggeredSignals` embeds the exact count value, not a
+    /// placeholder, so callers can extract it for structured logging.
+    func testTriggeredSignalsEmbedExactCount() throws {
+        // Given
+        let result = JailbreakDetector.Result(
+            environment: .device,
+            unexpectedImageCount: 7
+        )
+
+        // Then
+        XCTAssertTrue(
+            result.triggeredSignals.contains("unexpected_images:7"),
+            "triggeredSignals must embed the exact anomaly count"
+        )
     }
 }
