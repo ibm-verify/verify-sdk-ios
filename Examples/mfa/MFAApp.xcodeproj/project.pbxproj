@@ -440,7 +440,7 @@
 			repositoryURL = "https://github.com/ibm-verify/verify-sdk-ios.git";
 			requirement = {
 				kind = upToNextMinorVersion;
-				minimumVersion = 3.1.0;
+				minimumVersion = 3.1.7;
 			};
 		};
 		446A483928C6EE0A003AACC6 /* XCRemoteSwiftPackageReference "CodeScanner" */ = {

@@ -174,7 +174,7 @@ public class OAuthProvider {
         component.queryItems!.append(contentsOf: parameters.map {
             URLQueryItem(name: $0.key, value: String(describing: $0.value))
         })
-
+        
         // Launch browser
         if let url = component.url {
             let session = ASWebAuthenticationSession(url: url, callbackURLScheme: redirectUrl.scheme, completionHandler: webAuthenticationSessionCallback)

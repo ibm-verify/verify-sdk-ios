@@ -190,7 +190,8 @@ class KeychainServiceTests: XCTestCase {
 
         // When
         do {
-            try KeychainService.default.addItem("greeting", value: "Hello World", accessControl: .biometryAny)
+            let foo = "greeting"
+            try KeychainService.default.addItem(foo, value: "Hello World", accessControl: .biometryAny)
             // Then
             try KeychainService.default.deleteItem("greeting")
         }
@@ -923,9 +924,9 @@ class KeychainServiceTests: XCTestCase {
         
         // Then
         #if targetEnvironment(simulator)       // Expected to fail due to lack of entitlement support in SPM
-        XCTAssertTrue(result)
-        #else
         XCTAssertFalse(result)
+        #else
+        XCTAssertTrue(result)
         #endif
     }
     
@@ -935,6 +936,10 @@ class KeychainServiceTests: XCTestCase {
         let result = KeychainService.default.hasPolicyDomainStateChanged(nil)
         
         // Then
+        #if targetEnvironment(simulator)       // Expected to fail due to lack of entitlement support in SPM
+        XCTAssertFalse(result)
+        #else
         XCTAssertTrue(result)
+        #endif
     }
 }
