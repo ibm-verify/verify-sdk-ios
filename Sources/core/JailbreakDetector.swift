@@ -153,7 +153,22 @@ public enum JailbreakDetector {
     ///   system or application prefix.
     private static func countUnexpectedImages() -> Int {
         let appBundle = Bundle.main.bundlePath
-        let systemPrefixes = ["/System/", "/usr/lib/", "/Library/Caches/"]
+        let systemPrefixes = [
+            // Core OS libraries and frameworks
+            "/System/",
+            "/usr/lib/",
+            "/usr/local/lib/",
+
+            // dyld shared cache (pre-iOS 16)
+            "/Library/Caches/",
+
+            // Cryptexes: Apple ships many system dylibs here on iOS 16+
+            // via the OS cryptex (/System/…) and App cryptex (/Applications/…)
+            "/private/preboot/Cryptexes/",
+
+            // Developer disk images attached during Xcode debugging/testing
+            "/Developer/",
+        ]
         var anomalies = 0
 
         for i in 0..<_dyld_image_count() {
