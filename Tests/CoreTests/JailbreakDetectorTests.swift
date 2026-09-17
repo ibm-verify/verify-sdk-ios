@@ -17,13 +17,11 @@ class JailbreakDetectorTests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Constructs a clean (all-empty) device result.
+    /// Constructs a clean (zero-count) device result.
     private func cleanDeviceResult() -> JailbreakDetector.Result {
         JailbreakDetector.Result(
             environment: .device,
-            jailbreakPaths: [],
-            knownLibraryPaths: [],
-            unexpectedImagePaths: []
+            unexpectedImageCount: 0
         )
     }
 
@@ -65,19 +63,15 @@ class JailbreakDetectorTests: XCTestCase {
 
     // MARK: - Simulator signal suppression
 
-    /// Tests that all evidence arrays are empty on the Simulator.
-    func testSimulatorReturnsEmptyEvidence() throws {
+    /// Tests that `unexpectedImageCount` is zero on the Simulator.
+    func testSimulatorReturnsZeroUnexpectedImageCount() throws {
         #if targetEnvironment(simulator)
         // Given, When
         let result = JailbreakDetector.check()
 
         // Then
-        XCTAssertTrue(result.jailbreakPaths.isEmpty,
-                      "jailbreakPaths should be empty on the Simulator")
-        XCTAssertTrue(result.knownLibraryPaths.isEmpty,
-                      "knownLibraryPaths should be empty on the Simulator")
-        XCTAssertTrue(result.unexpectedImagePaths.isEmpty,
-                      "unexpectedImagePaths should be empty on the Simulator")
+        XCTAssertEqual(result.unexpectedImageCount, 0,
+                       "unexpectedImageCount should be 0 on the Simulator")
         #else
         throw XCTSkip("Simulator-only test")
         #endif
@@ -140,42 +134,12 @@ class JailbreakDetectorTests: XCTestCase {
         XCTAssertFalse(cleanDeviceResult().hasCompromiseIndicators)
     }
 
-    /// Tests that a jailbreak path alone sets hasCompromiseIndicators.
-    func testJailbreakPathSetsCompromiseIndicator() throws {
+    /// Tests that a non-zero unexpectedImageCount sets hasCompromiseIndicators.
+    func testNonZeroCountSetsCompromiseIndicator() throws {
         // Given
         let result = JailbreakDetector.Result(
             environment: .device,
-            jailbreakPaths: ["/var/jb/usr/lib/libhooker.dylib"],
-            knownLibraryPaths: [],
-            unexpectedImagePaths: []
-        )
-
-        // Then
-        XCTAssertTrue(result.hasCompromiseIndicators)
-    }
-
-    /// Tests that a known library path alone sets hasCompromiseIndicators.
-    func testKnownLibraryPathSetsCompromiseIndicator() throws {
-        // Given
-        let result = JailbreakDetector.Result(
-            environment: .device,
-            jailbreakPaths: [],
-            knownLibraryPaths: ["/tmp/frida-agent.dylib"],
-            unexpectedImagePaths: []
-        )
-
-        // Then
-        XCTAssertTrue(result.hasCompromiseIndicators)
-    }
-
-    /// Tests that an unexpected image path alone sets hasCompromiseIndicators.
-    func testUnexpectedImagePathSetsCompromiseIndicator() throws {
-        // Given
-        let result = JailbreakDetector.Result(
-            environment: .device,
-            jailbreakPaths: [],
-            knownLibraryPaths: [],
-            unexpectedImagePaths: ["/private/var/unknown.dylib"]
+            unexpectedImageCount: 1
         )
 
         // Then
@@ -184,80 +148,46 @@ class JailbreakDetectorTests: XCTestCase {
 
     // MARK: - triggeredSignals content
 
-    /// Tests that jailbreak paths emit a jailbreak_paths signal with the correct count.
-    func testJailbreakPathsSignal() throws {
+    /// Tests that a non-zero count produces an unexpected_images signal with
+    /// the exact count embedded.
+    func testUnexpectedImagesSignalContainsCount() throws {
         // Given
         let result = JailbreakDetector.Result(
             environment: .device,
-            jailbreakPaths: ["/var/jb/a.dylib", "/var/jb/b.dylib"],
-            knownLibraryPaths: [],
-            unexpectedImagePaths: []
+            unexpectedImageCount: 3
         )
 
         // Then
-        XCTAssertTrue(result.triggeredSignals.contains("jailbreak_paths:2"))
-        XCTAssertFalse(result.triggeredSignals.contains(where: { $0.hasPrefix("known_libraries:") }))
-        XCTAssertFalse(result.triggeredSignals.contains(where: { $0.hasPrefix("unexpected_images:") }))
-    }
-
-    /// Tests that known library paths emit a known_libraries signal with the correct count.
-    func testKnownLibrariesSignal() throws {
-        // Given
-        let result = JailbreakDetector.Result(
-            environment: .device,
-            jailbreakPaths: [],
-            knownLibraryPaths: ["/tmp/frida-agent.dylib"],
-            unexpectedImagePaths: []
+        XCTAssertTrue(
+            result.triggeredSignals.contains("unexpected_images:3"),
+            "triggeredSignals must contain 'unexpected_images:3', got: \(result.triggeredSignals)"
         )
-
-        // Then
-        XCTAssertTrue(result.triggeredSignals.contains("known_libraries:1"))
-        XCTAssertFalse(result.triggeredSignals.contains(where: { $0.hasPrefix("jailbreak_paths:") }))
-        XCTAssertFalse(result.triggeredSignals.contains(where: { $0.hasPrefix("unexpected_images:") }))
     }
 
-    /// Tests that unexpected image paths emit an unexpected_images signal with the correct count.
-    func testUnexpectedImagesSignal() throws {
-        // Given
-        let result = JailbreakDetector.Result(
-            environment: .device,
-            jailbreakPaths: [],
-            knownLibraryPaths: [],
-            unexpectedImagePaths: ["/private/var/a.dylib", "/private/var/b.dylib", "/private/var/c.dylib"]
-        )
-
-        // Then
-        XCTAssertTrue(result.triggeredSignals.contains("unexpected_images:3"))
-        XCTAssertFalse(result.triggeredSignals.contains(where: { $0.hasPrefix("jailbreak_paths:") }))
-        XCTAssertFalse(result.triggeredSignals.contains(where: { $0.hasPrefix("known_libraries:") }))
-    }
-
-    /// Tests that all three signals appear together when all buckets are populated.
-    func testAllThreeSignalsTriggerTogether() throws {
-        // Given
-        let result = JailbreakDetector.Result(
-            environment: .device,
-            jailbreakPaths: ["/var/jb/x.dylib"],
-            knownLibraryPaths: ["/tmp/substrate.dylib"],
-            unexpectedImagePaths: ["/private/var/unknown.dylib"]
-        )
-
-        // Then
-        let signals = result.triggeredSignals
-        XCTAssertTrue(signals.contains("jailbreak_paths:1"))
-        XCTAssertTrue(signals.contains("known_libraries:1"))
-        XCTAssertTrue(signals.contains("unexpected_images:1"))
-    }
-
-    /// Tests that absent signal buckets do not appear in triggeredSignals.
-    func testEmptyBucketsAbsentFromTriggeredSignals() throws {
+    /// Tests that a zero count produces no unexpected_images signal.
+    func testZeroCountAbsentFromTriggeredSignals() throws {
         // Given
         let result = cleanDeviceResult()
 
         // Then
-        let signals = result.triggeredSignals
-        XCTAssertFalse(signals.contains(where: { $0.hasPrefix("jailbreak_paths:") }))
-        XCTAssertFalse(signals.contains(where: { $0.hasPrefix("known_libraries:") }))
-        XCTAssertFalse(signals.contains(where: { $0.hasPrefix("unexpected_images:") }))
+        XCTAssertFalse(
+            result.triggeredSignals.contains(where: { $0.hasPrefix("unexpected_images:") }),
+            "triggeredSignals must not contain an unexpected_images entry when count is 0"
+        )
+    }
+
+    /// Tests that the exact count value is embedded in triggeredSignals.
+    func testTriggeredSignalsEmbedExactCount() throws {
+        // Given
+        let result = JailbreakDetector.Result(
+            environment: .device,
+            unexpectedImageCount: 7
+        )
+
+        // Then
+        XCTAssertTrue(
+            result.triggeredSignals.contains("unexpected_images:7"),
+            "triggeredSignals must embed the exact anomaly count"
+        )
     }
 }

@@ -4,7 +4,7 @@ Note: This is in reverse chronological order, so newer entries are added to the 
 16 September 2026
 
 ### IBM Verify Core SDK for iOS
-* Added `JailbreakDetector` — a structural runtime integrity check that detects injected dynamic libraries by counting dyld images whose paths fall outside the application bundle and known system directories (`/System/`, `/usr/lib/`, `/usr/local/lib/`, `/private/preboot/Cryptexes/`). Any injected library (Frida, ElleKit, Cycript, etc.) is detected regardless of filename, making the check significantly harder to evade than name-based approaches.
+* Added `JailbreakDetector` — a structural runtime integrity check that detects injected dynamic libraries by counting dyld images whose paths fall outside the application bundle and known system directories (`/System/`, `/usr/lib/`, `/private/preboot/Cryptexes/`). Any injected library (Frida, ElleKit, Cycript, etc.) is detected regardless of filename, making the check significantly harder to evade than name-based approaches. A `#if DEBUG`-only exemption covers `/Developer/` images loaded when a device is tethered to Xcode, ensuring no signals are suppressed in production builds.
 * All device-specific checks are suppressed on the iOS Simulator; results are explicitly marked as unevaluated rather than falsely clean.
 * Increment version
 

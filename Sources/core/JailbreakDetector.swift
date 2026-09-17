@@ -25,20 +25,21 @@ import OSLog
 /// ## Detection approach
 ///
 /// This detector examines the Mach-O images currently loaded into the
-/// application process through dyld. It collects three independent signals:
+/// application process through dyld.
 ///
-/// 1. **Jailbreak paths** — images loaded from known rootless jailbreak
-///    locations (e.g. `/var/jb/`). These are unambiguously suspicious.
-/// 2. **Known libraries** — images whose paths contain substrings associated
-///    with known injection and instrumentation frameworks (Frida, Substrate,
-///    ElleKit, etc.).
-/// 3. **Unexpected images** — images whose paths are outside the application
-///    bundle and all recognised system locations. These are a structural
-///    signal: any injected library must be loaded from *somewhere*, and a
-///    renamed tool still appears here.
+/// It deliberately does not depend solely on matching the names of known
+/// jailbreak or instrumentation libraries. A library can be renamed, while
+/// an injected image still needs to be loaded into the process.
 ///
-/// Each signal is reported independently so callers can apply their own
-/// policy threshold rather than relying on a single opaque boolean.
+/// The detector therefore records loaded images whose paths are outside:
+///
+/// - the application bundle;
+/// - standard iOS system image locations; and
+/// - known Cryptex locations used by modern iOS releases.
+///
+/// Unexpected image locations are treated as **heuristic evidence only**.
+/// A non-zero count does not, by itself, establish that the device is
+/// jailbroken.
 ///
 /// ## Platform
 ///
@@ -69,63 +70,37 @@ public enum JailbreakDetector {
         /// or in the Simulator.
         public let environment: Environment
 
-        /// Paths of images loaded from known rootless jailbreak locations
-        /// (e.g. `/var/jb/`).
+        /// The number of loaded dyld images whose paths did not match the
+        /// application bundle or a trusted system image prefix.
         ///
-        /// Any entry here is an unambiguous signal: legitimate iOS system
-        /// components are never staged under these paths.
-        public let jailbreakPaths: [String]
-
-        /// Paths of images whose filenames contain substrings associated
-        /// with known injection or instrumentation frameworks.
+        /// A non-zero value indicates that the process loaded one or more
+        /// images from locations that are not currently recognised by this
+        /// detector.
         ///
-        /// This catches default installs of tools such as Frida, Substrate,
-        /// ElleKit, and Cycript that have not been renamed. It is
-        /// complementary to `unexpectedImagePaths`, which catches renamed
-        /// tools by location rather than by name.
-        public let knownLibraryPaths: [String]
-
-        /// Paths of images that are outside the application bundle and all
-        /// recognised system locations, but did not match a known-bad prefix
-        /// or library name.
-        ///
-        /// This is a structural signal: any injected library must be loaded
-        /// from somewhere, so a renamed or novel tool still appears here.
-        /// Callers should interpret this alongside `jailbreakPaths` and
-        /// `knownLibraryPaths` rather than treating it as an independent
-        /// verdict.
-        public let unexpectedImagePaths: [String]
+        /// This is intentionally an evidence count, not a jailbreak score.
+        public let unexpectedImageCount: Int
 
         // MARK: Derived State
 
         /// Indicates whether at least one heuristic compromise indicator
-        /// was observed across all three signal categories.
+        /// was observed.
         ///
         /// `true` means evidence was observed; it does not mean the device
         /// has been proven to be jailbroken.
         public var hasCompromiseIndicators: Bool {
-            !jailbreakPaths.isEmpty
-                || !knownLibraryPaths.isEmpty
-                || !unexpectedImagePaths.isEmpty
+            unexpectedImageCount > 0
         }
 
         /// Returns stable identifiers for the signals observed by the check.
         ///
         /// The environment is always included as the first entry so the
         /// result remains self-describing when emitted to structured logs
-        /// or telemetry. An array containing only the environment identifier
-        /// indicates that no compromise signal was triggered.
+        /// or telemetry.
         ///
-        /// Example output on a clean device:
-        ///
-        ///     ["environment:device"]
-        ///
-        /// Example output with evidence:
+        /// Example:
         ///
         ///     [
         ///         "environment:device",
-        ///         "jailbreak_paths:1",
-        ///         "known_libraries:1",
         ///         "unexpected_images:2"
         ///     ]
         public var triggeredSignals: [String] {
@@ -133,16 +108,10 @@ public enum JailbreakDetector {
                 "environment:\(environment.rawValue)"
             ]
 
-            if !jailbreakPaths.isEmpty {
-                signals.append("jailbreak_paths:\(jailbreakPaths.count)")
-            }
-
-            if !knownLibraryPaths.isEmpty {
-                signals.append("known_libraries:\(knownLibraryPaths.count)")
-            }
-
-            if !unexpectedImagePaths.isEmpty {
-                signals.append("unexpected_images:\(unexpectedImagePaths.count)")
+            if unexpectedImageCount > 0 {
+                signals.append(
+                    "unexpected_images:\(unexpectedImageCount)"
+                )
             }
 
             return signals
@@ -166,7 +135,8 @@ public enum JailbreakDetector {
     ///
     /// Production builds do not include the logger or diagnostic statements.
     private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "JailbreakDetector",
+        subsystem: Bundle.main.bundleIdentifier
+            ?? "JailbreakDetector",
         category: "JailbreakDetector"
     )
 
@@ -176,10 +146,9 @@ public enum JailbreakDetector {
 
     /// Performs the configured jailbreak/environment integrity checks.
     ///
-    /// The implementation inspects the process's loaded Mach-O images and
-    /// classifies them into three independent evidence buckets:
-    /// known jailbreak paths, known injection library names, and structurally
-    /// unexpected image locations.
+    /// The current implementation inspects the process's loaded Mach-O
+    /// images and counts images whose paths do not belong to the application
+    /// bundle or recognised system locations.
     ///
     /// On the iOS Simulator, the device-specific check is skipped and the
     /// returned environment is `.simulator`.
@@ -195,31 +164,22 @@ public enum JailbreakDetector {
 
         return Result(
             environment: .simulator,
-            jailbreakPaths: [],
-            knownLibraryPaths: [],
-            unexpectedImagePaths: []
+            unexpectedImageCount: 0
         )
 
         #else
 
-        let evidence = collectImageEvidence()
+        let unexpectedImageCount = countUnexpectedImages()
 
         #if DEBUG
         logger.debug(
-            """
-            Jailbreak image check completed. \
-            Jailbreak paths: \(evidence.jailbreakPaths.count), \
-            Known libraries: \(evidence.knownLibraryPaths.count), \
-            Unexpected images: \(evidence.unexpectedImagePaths.count)
-            """
+            "Jailbreak image check completed. Unexpected images: \(unexpectedImageCount)"
         )
         #endif
 
         return Result(
             environment: .device,
-            jailbreakPaths: evidence.jailbreakPaths,
-            knownLibraryPaths: evidence.knownLibraryPaths,
-            unexpectedImagePaths: evidence.unexpectedImagePaths
+            unexpectedImageCount: unexpectedImageCount
         )
 
         #endif
@@ -229,30 +189,87 @@ public enum JailbreakDetector {
 
     #if !targetEnvironment(simulator)
 
-    // MARK: - Evidence Collection
+    // MARK: - Trusted Image Prefixes
 
-    private struct ImageEvidence {
-        var jailbreakPaths: [String] = []
-        var knownLibraryPaths: [String] = []
-        var unexpectedImagePaths: [String] = []
+    /// Returns paths that are considered normal locations for Apple-provided
+    /// system images on an iOS 18+ deployment target.
+    ///
+    /// This list is intentionally conservative and limited to broad system
+    /// locations rather than individual dylib names.
+    private static var trustedImagePrefixes: [String] {
+        var prefixes = [
+            // Core OS frameworks and libraries.
+            "/System/",
+            "/usr/lib/",
+
+            // Modern iOS Cryptex content.
+            //
+            // iOS system components can be presented through Cryptex-backed
+            // paths beneath this hierarchy.
+            "/private/preboot/Cryptexes/"
+        ]
+
+        #if DEBUG
+
+        // When a physical development device is attached to Xcode, developer
+        // tooling may load from /Developer/. This exemption exists only in
+        // DEBUG builds and therefore cannot suppress the same path in a
+        // production build.
+        prefixes.append("/Developer/")
+
+        #endif
+
+        return prefixes
     }
 
-    /// Walks the dyld image list and classifies each loaded image into one
-    /// of three evidence buckets.
+    // MARK: - Unexpected Image Detection
+
+    /// Counts currently loaded dyld images that are not located in the
+    /// application bundle or a recognised trusted system location.
     ///
-    /// Classification order matters: a path is assigned to the first
-    /// matching bucket and not evaluated further, so the higher-confidence
-    /// signals (jailbreak paths, known library names) are checked before
-    /// the catch-all structural bucket.
-    private static func collectImageEvidence() -> ImageEvidence {
-        let appBundlePrefix = appBundlePrefixWithSlash()
+    /// This is a heuristic runtime integrity signal.
+    ///
+    /// A legitimate image can be unexpected if Apple changes the system image
+    /// layout in a future iOS release or if the application's runtime
+    /// environment legitimately introduces another image location.
+    ///
+    /// Conversely, jailbreak and instrumentation frameworks can introduce
+    /// additional images outside normal system locations.
+    ///
+    /// The result should therefore be interpreted together with other
+    /// security signals rather than treated as an independent jailbreak
+    /// verdict.
+    ///
+    /// - Returns: The number of loaded images classified as unexpected.
+    private static func countUnexpectedImages() -> Int {
+        let appBundle = Bundle.main.bundlePath
+
+        // Require a path boundary after the bundle path.
+        //
+        // Without this, a path such as:
+        //
+        //     /private/.../MyApp.app.injected/foo.dylib
+        //
+        // would incorrectly match:
+        //
+        //     /private/.../MyApp.app
+        //
+        // Using a trailing slash avoids that prefix collision.
+        let appBundlePrefix: String = {
+            if appBundle.hasSuffix("/") {
+                return appBundle
+            }
+
+            return appBundle + "/"
+        }()
+
         let imageCount = _dyld_image_count()
 
         guard imageCount > 0 else {
-            return ImageEvidence()
+            return 0
         }
 
-        var evidence = ImageEvidence()
+        var anomalies = 0
 
         for index in 0..<imageCount {
             guard let imageName = _dyld_get_image_name(index) else {
@@ -271,108 +288,28 @@ public enum JailbreakDetector {
                 continue
             }
 
-            // Bucket 1: known rootless jailbreak locations.
-            if isJailbreakPath(path) {
-                evidence.jailbreakPaths.append(path)
-                continue
-            }
-
-            // Bucket 2: known injection/instrumentation library names.
-            if isKnownLibrary(path) {
-                evidence.knownLibraryPaths.append(path)
-                continue
-            }
-
-            // Bucket 3: structural catch-all — unexpected location.
-            evidence.unexpectedImagePaths.append(path)
+            anomalies += 1
         }
 
-        return evidence
+        return anomalies
     }
 
-    // MARK: - Trusted Image Prefixes
+    // MARK: - Image Classification
 
-    /// Returns the application bundle path with a guaranteed trailing slash.
+    /// Determines whether a loaded image path belongs to a recognised
+    /// system location.
     ///
-    /// Without the slash, a path such as `/private/.../MyApp.app.evil/foo.dylib`
-    /// would incorrectly match the bundle prefix `/private/.../MyApp.app`.
-    private static func appBundlePrefixWithSlash() -> String {
-        let path = Bundle.main.bundlePath
-        return path.hasSuffix("/") ? path : path + "/"
-    }
-
-    /// Returns paths considered normal locations for Apple-provided system
-    /// images on an iOS 18+ deployment target.
+    /// The prefixes end at directory boundaries so that unrelated paths such
+    /// as `/usr/libfoo/` cannot accidentally be treated as `/usr/lib/`.
     ///
-    /// The list is conservative and limited to broad directory prefixes.
-    /// All prefixes end with `/` to prevent partial-component collisions
-    /// (e.g. `/usr/libfoo/` must not match the `/usr/lib/` prefix).
-    private static var trustedImagePrefixes: [String] {
-        var prefixes = [
-            // Core OS frameworks and libraries.
-            "/System/",
-            "/usr/lib/",
-
-            // Cryptex-backed system content (iOS 16+, always present on iOS 18).
-            // The legacy /Library/Caches/ shared cache location is not used
-            // on iOS 18 and is intentionally omitted.
-            "/private/preboot/Cryptexes/",
-        ]
-
-        #if DEBUG
-        // When a physical development device is attached to Xcode, developer
-        // tooling may load images from /Developer/. This exemption exists
-        // only in DEBUG builds and cannot suppress signals in production.
-        prefixes.append("/Developer/")
-        #endif
-
-        return prefixes
+    /// - Parameter path: Absolute path returned by dyld.
+    /// - Returns: `true` when the image is located beneath a trusted prefix.
+    private static func isTrustedSystemImagePath(
+        _ path: String
+    ) -> Bool {
+        trustedImagePrefixes.contains {
+            path.hasPrefix($0)
+        }
     }
-
-    /// Returns `true` when `path` is beneath a trusted system prefix.
-    private static func isTrustedSystemImagePath(_ path: String) -> Bool {
-        trustedImagePrefixes.contains { path.hasPrefix($0) }
-    }
-
-    // MARK: - Jailbreak Path Detection
-
-    /// Path prefixes that are unambiguously associated with rootless
-    /// jailbreak environments.
-    ///
-    /// Legitimate iOS system components are never staged under these paths.
-    private static let jailbreakPrefixes: [String] = [
-        "/var/jb/",
-    ]
-
-    /// Returns `true` when `path` originates from a known jailbreak location.
-    private static func isJailbreakPath(_ path: String) -> Bool {
-        jailbreakPrefixes.contains { path.hasPrefix($0) }
-    }
-
-    // MARK: - Known Library Detection
-
-    /// Lowercase substrings present in the paths of known injection and
-    /// instrumentation frameworks.
-    ///
-    /// This list catches default installs that have not been renamed.
-    /// It is complementary to the structural bucket, which catches renamed
-    /// tools by location.
-    private static let knownLibrarySubstrings: [String] = [
-        "substrate",
-        "substitute",
-        "frida",
-        "cycript",
-        "libhooker",
-        "ellekit",
-        "tweakinject",
-    ]
-
-    /// Returns `true` when the lowercase form of `path` contains a known
-    /// injection or instrumentation library substring.
-    private static func isKnownLibrary(_ path: String) -> Bool {
-        let lower = path.lowercased()
-        return knownLibrarySubstrings.contains { lower.contains($0) }
-    }
-
     #endif
 }
