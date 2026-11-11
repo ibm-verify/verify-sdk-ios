@@ -45,6 +45,29 @@ class PublicKeyCredentialProviderTests: XCTestCase {
     }
 }
 
+extension PublicKeyCredentialProviderTests {
+    func testCreateUnsupportedAlgorithms() throws {
+        // Given
+        let options = PublicKeyCredentialCreationOptions(
+            rp: PublicKeyCredentialRpEntity(name: "mydomain.com"),
+            user: PublicKeyCredentialUserEntity(id: "JohnD", displayName: "John Doe", name: "JohnD"),
+            challenge: UUID().uuidString,
+            authenticatorSelection: AuthenticatorSelectionCriteria(),
+            pubKeyCredParams: [PublicKeyCredentialParameters(alg: .rs256)])
+        
+        // When
+        self.expectation = expectation(description: "Unsupported algorithms.")
+        let provider = PublicKeyCredentialProvider()
+        provider.delegate = self
+        provider.createCredentialAttestationRequest(options: options)
+        waitForExpectations(timeout: 1)
+        
+        // Then
+        let result = try XCTUnwrap(error)
+        XCTAssertEqual(result as? PublicKeyCredentialError, PublicKeyCredentialError.general(message: "None of the requested public key algorithms are supported."))
+    }
+}
+
 extension PublicKeyCredentialProviderTests: PublicKeyCredentialDelegate {
     func publicKeyCredential(provider: PublicKeyCredentialProvider, didCompleteWithError error: Error) {
         self.error = error

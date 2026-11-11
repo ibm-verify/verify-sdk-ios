@@ -322,6 +322,12 @@ class PublicKeyCredentialTest: XCTestCase {
         XCTAssertEqual(result, COSEAlgorithmIdentifier.es512)
     }
     
+    func testCOSEAlgorithmIdentifierParseMLDSA() throws {
+        XCTAssertNil(COSEAlgorithmIdentifier.parse(from: -48))
+        XCTAssertEqual(COSEAlgorithmIdentifier.parse(from: -49), .mldsa65)
+        XCTAssertEqual(COSEAlgorithmIdentifier.parse(from: -50), .mldsa87)
+    }
+
     func testCOSEAlgorithmIdentifierParsePS256() throws {
         // Given
         let result = COSEAlgorithmIdentifier.parse(from: -37)

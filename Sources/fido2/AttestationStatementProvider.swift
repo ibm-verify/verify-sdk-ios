@@ -68,7 +68,7 @@ public struct SelfAttestation: PackedAttestionStatementProvider {
     public let format: String = "packed"
     
     /// A credential private key is the private key portion of a credential key pair. The credential private key is bound to a particular authenticator.
-    public var privateKey: SecureEnclave.P256.Signing.PrivateKey?
+    public var privateKey: (any SecureEnclaveSigningKey)?
     
     /// A byte array containing authenticator data.
     public var authenticatorData: Data?
@@ -82,7 +82,6 @@ public struct SelfAttestation: PackedAttestionStatementProvider {
     /// - Returns: A dictionary representing the attestation statement format.
     public func statement() throws -> Dictionary<String, Any> {
         var result = [String: Any]()
-        result.updateValue(Int64(-7), forKey: "alg")
                 
         guard let authenticatorData = authenticatorData, let clientDataHash = clientDataHash else {
             throw PublicKeyCredentialError.invalidAttestationData
@@ -92,6 +91,9 @@ public struct SelfAttestation: PackedAttestionStatementProvider {
             throw PublicKeyCredentialError.invalidPrivateKeyData
         }
         
+        // The algorithm of the credential private key.
+        result.updateValue(Int64(privateKey.algorithm.rawValue), forKey: "alg")
+        
         // The signature base string
         var data: [UInt8] = []
         data.append(contentsOf: authenticatorData)
@@ -100,7 +102,7 @@ public struct SelfAttestation: PackedAttestionStatementProvider {
         
         // Perform signing operation
         do {
-            let signatureData = try privateKey.signature(for: data).derRepresentation
+            let signatureData = try privateKey.sign(Data(data))
             let signatureBytes = [UInt8](signatureData)
             result.updateValue(signatureBytes, forKey: "sig")
             return result
