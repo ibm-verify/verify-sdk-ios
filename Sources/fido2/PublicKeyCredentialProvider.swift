@@ -71,6 +71,7 @@ public class PublicKeyCredentialProvider {
     /// - Parameters:
     ///   - aaguid: The AAGUID of the authenticator.  Default is  "00000000-0000-0000-0000-000000000000".
     ///   - statementProvider: Represents a type of signed data object, containing statements about a public key credential itself and the authenticator that created it.  Default is `NoneAttestation`.
+    ///   - algorithm: The algorithm of the credential key pair. Supported values are `es256`, `mldsa65` and `mldsa87`. The ML-DSA algorithms require iOS 26 (Mac Catalyst 26) or later. When `nil`, the first supported algorithm in `options.pubKeyCredParams` is used, or `es256` if that list is empty.
     ///   - options: An instance of `PublicKeyCredentialCreationOptions`.
     ///
     /// When the request succeeds, the information is relayed to the view controllers `delegate` by calling the `publicKeyCredential(provider:didCompleteWithAttestation:)` method with the result.  If the request fails then `publicKeyCredential(provider:didCompleteWithError:)` is called instead.
@@ -105,7 +106,13 @@ public class PublicKeyCredentialProvider {
     /// provider.delegate = self
     /// provider.createCredentialAttestationRequest(aaguid, statementProvider: SelfAttestation(aaguid), options: options)
     /// ```
-    public func createCredentialAttestationRequest(_ aaguid: UUID = UUID().empty, statementProvider: AttestionStatementProvider = NoneAttestation(), options: PublicKeyCredentialCreationOptions) {
+    public func createCredentialAttestationRequest(_ aaguid: UUID = UUID().empty, statementProvider: AttestionStatementProvider = NoneAttestation(), algorithm: COSEAlgorithmIdentifier? = nil, options: PublicKeyCredentialCreationOptions) {
+        // Determine the key algorithm before prompting the user.
+        guard let algorithm = algorithm ?? SecKeyStore.selectAlgorithm(from: options.pubKeyCredParams) else {
+            delegate?.publicKeyCredential(provider: self, didCompleteWithError: PublicKeyCredentialError.general(message: "None of the requested public key algorithms are supported."))
+            return
+        }
+        
         
         // Check the attestation conveyance preference, if "direct" and no PackedAttestionStatementProvider assigned, then bail out.
         if options.attestation == .indirect || (options.attestation == .direct && statementProvider is NoneAttestation) {
@@ -150,7 +157,7 @@ public class PublicKeyCredentialProvider {
         // Create a new key.
         let store = SecKeyStore(serviceName: applicationTag, accessGroup: accessGroup)
         do {
-            let privateKey = try store.generate(context: context)
+            let privateKey = try store.generate(algorithm: algorithm, context: context)
             
             // Create the attestation payload.
             let result = try processPublicKeyAttestationResponse(aaguid, statementProvider: statementProvider, privateKey: privateKey, context: context, options: options)
@@ -206,7 +213,7 @@ public class PublicKeyCredentialProvider {
         // 2. Find matching private key
         let successfulMatch = options.allowCredentials?
             .lazy
-            .compactMap { credential -> (id: String, key: SecureEnclave.P256.Signing.PrivateKey)? in
+            .compactMap { credential -> (id: String, key: any SecureEnclaveSigningKey)? in
                 if let key = store.read(credential.id, context: context) {
                     return (credential.id, key)
                 }
@@ -321,11 +328,11 @@ public class PublicKeyCredentialProvider {
     
     // MARK: Private methods
     
-    private func processPublicKeyAttestationResponse(_ aaguid: UUID, statementProvider: AttestionStatementProvider, privateKey: SecureEnclave.P256.Signing.PrivateKey, context: LAContext, options: PublicKeyCredentialCreationOptions) throws -> PublicKeyCredential<AuthenticatorAttestationResponse> {
+    private func processPublicKeyAttestationResponse(_ aaguid: UUID, statementProvider: AttestionStatementProvider, privateKey: any SecureEnclaveSigningKey, context: LAContext, options: PublicKeyCredentialCreationOptions) throws -> PublicKeyCredential<AuthenticatorAttestationResponse> {
     
         // MARK: Build the id and rawId
         // 1. Create id as Data. The id whose value is also the rawId and credentialId.
-        let id = Data(SHA256.hash(data: privateKey.publicKey.derRepresentation))
+        let id = Data(SHA256.hash(data: privateKey.publicKeyData))
         
         // MARK: Build clientData JSON and hash
         // 1. Create a dictionary of the values.
@@ -373,10 +380,8 @@ public class PublicKeyCredentialProvider {
         // 4. Add the credentialId
         attestedCredentailDataParam.append(contentsOf: [UInt8](id))
         
-        // 5. Convert the public key DER to COSE format.
-        let publicKeyDER = privateKey.publicKey.derRepresentation
-        let publicKeyCOSE = COSEKeyEC2(alg: -7, crv: 1, xCoord: Array(publicKeyDER[27..<59]), yCoord: Array(publicKeyDER[59..<91]))
-        attestedCredentailDataParam.append(contentsOf: publicKeyCOSE.bytes)
+        // 5. Add the public key in COSE format.
+        attestedCredentailDataParam.append(contentsOf: privateKey.cosePublicKey)
         
         // 6. Add attestedCredential to authenticatorData
         authenticatorDataParams.append(contentsOf: attestedCredentailDataParam)
@@ -390,7 +395,6 @@ public class PublicKeyCredentialProvider {
             attestationFormat.clientDataHash = clientDataHash
             
             if attestationFormat is SelfAttestation, var selfAttestation = attestationFormat as? SelfAttestation {
-                let privateKey = try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: privateKey.dataRepresentation, authenticationContext: context)
                 selfAttestation.privateKey = privateKey
                 attestationFormat = selfAttestation
             }
@@ -419,10 +423,10 @@ public class PublicKeyCredentialProvider {
         return PublicKeyCredential<AuthenticatorAttestationResponse>(rawId: id.base64URLEncodedString(), id: id.base64URLEncodedString(), response: response, getTransports: ["internal"])
     }
     
-    private func processPublicKeyAssertionResponse(rpId: String, privateKey: SecureEnclave.P256.Signing.PrivateKey, clientDataHash: Data, userHandle: [UInt8], credentialId: String) throws -> PublicKeyCredential<AuthenticatorAssertionResponse> {
+    private func processPublicKeyAssertionResponse(rpId: String, privateKey: any SecureEnclaveSigningKey, clientDataHash: Data, userHandle: [UInt8], credentialId: String) throws -> PublicKeyCredential<AuthenticatorAssertionResponse> {
         // MARK: Build the id and rawId
         // 1. Create id as Data. The id whose value is also the rawId and credentialId.
-        let id = Data(SHA256.hash(data: privateKey.publicKey.derRepresentation))
+        let id = Data(SHA256.hash(data: privateKey.publicKeyData))
         
         // MARK: Build authenticatorData
         // https://w3c.github.io/webauthn/#sctn-op-get-assertion
@@ -458,7 +462,7 @@ public class PublicKeyCredentialProvider {
         
         // 3. Sign and return in DER format (which WebAuthn servers expect)
         do {
-            let signature = try privateKey.signature(for: signatureBase).derRepresentation
+            let signature = try privateKey.sign(signatureBase)
             
             // 4. Construct the Ghost JSON
             let clientDataJSON = "{\"challenge\":\"extension_context\",\"crossOrigin\":false,\"origin\":\"https://\(rpId)\",\"type\":\"webauthn.get\"}"
@@ -478,10 +482,10 @@ public class PublicKeyCredentialProvider {
         }
     }
     
-    private func processPublicKeyAssertionResponse(options: PublicKeyCredentialRequestOptions, privateKey: SecureEnclave.P256.Signing.PrivateKey, params: [String: Any]? = [:]) throws -> PublicKeyCredential<AuthenticatorAssertionResponse> {
+    private func processPublicKeyAssertionResponse(options: PublicKeyCredentialRequestOptions, privateKey: any SecureEnclaveSigningKey, params: [String: Any]? = [:]) throws -> PublicKeyCredential<AuthenticatorAssertionResponse> {
         // MARK: Build the id and rawId
         // 1. Create id as Data. The id which value is also the rawId and credentialId.
-        let id = Data(SHA256.hash(data: privateKey.publicKey.derRepresentation))
+        let id = Data(SHA256.hash(data: privateKey.publicKeyData))
         
         // MARK: Build clientData JSON and hash
         // 1. Create a dictionary of the values.
@@ -547,10 +551,10 @@ public class PublicKeyCredentialProvider {
         
         // 5. Sign the signatureBase.
         do {
-            let signature = try privateKey.signature(for: signatureBase)
+            let signature = try privateKey.sign(Data(signatureBase))
         
             // 6. Build the response
-            let response = AuthenticatorAssertionResponse(clientDataJSON: clientDataJSON, authenticatorData: authenticatorDataParams, signature: Array(signature.derRepresentation), userHandle: nil)
+            let response = AuthenticatorAssertionResponse(clientDataJSON: clientDataJSON, authenticatorData: authenticatorDataParams, signature: Array(signature), userHandle: nil)
         
             return PublicKeyCredential<AuthenticatorAssertionResponse>(rawId: id.base64URLEncodedString(), id: id.base64URLEncodedString(), response: response)
         }

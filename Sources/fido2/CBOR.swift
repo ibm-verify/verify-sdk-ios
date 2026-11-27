@@ -458,12 +458,22 @@ internal class CBORWriter {
         return self
     }
 
+    /// Orders map entries by the bytes of their encoded keys, per the CTAP2 canonical CBOR encoding form (and RFC 8949 section 4.2.1).
+    /// For the key types used here this yields: unsigned integers ascending, then negative integers (-1 before -2), and text strings shortest first, then bytewise.
+    /// Swift dictionaries have no defined order, so this is required to make the output deterministic.
+    private func sortedEntries<K: Hashable>(_ values: [K: Any], encodeKey: (K) -> [UInt8]) -> [(key: K, value: Any)] {
+        return values
+            .map { (key: $0.key, value: $0.value, encoded: encodeKey($0.key)) }
+            .sorted { $0.encoded.lexicographicallyPrecedes($1.encoded) }
+            .map { (key: $0.key, value: $0.value) }
+    }
+
     // for Attestation Object
     func putStringKeyMap(_ values: [String: Any]) -> CBORWriter {
         var bytes = composePositive(UInt64(values.count))
         bytes[0] = bytes[0] | CBORBits.mapHeader
         self.result.append(contentsOf: bytes)
-        for (key, value) in values {
+        for (key, value) in sortedEntries(values, encodeKey: { CBORWriter().putString($0).getResult() }) {
             _ = self.putString(key)
             if value is Int64 {
                 _ = self.putNumber(value as! Int64)
@@ -501,7 +511,7 @@ internal class CBORWriter {
         var bytes = composePositive(UInt64(values.count))
         bytes[0] = bytes[0] | CBORBits.mapHeader
         self.result.append(contentsOf: bytes)
-        for (key, value) in values {
+        for (key, value) in sortedEntries(values, encodeKey: { CBORWriter().putNumber(Int64($0)).getResult() }) {
             _ = self.putNumber(Int64(key))
             if value is Int64 {
                 _ = self.putNumber(value as! Int64)

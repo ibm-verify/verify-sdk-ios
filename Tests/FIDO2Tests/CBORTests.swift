@@ -252,6 +252,57 @@ class CBORTests: XCTestCase {
         XCTAssertEqual(result3![24] as! Int64, 25)
     }
     
+    func testIntKeyMapCanonicalOrder() {
+        // COSE_Key keys must be written 1, 3, -1, -2, -3 (CTAP2 canonical CBOR).
+        let values: [Int: Any] = [-3: Int64(5), -2: Int64(4), -1: Int64(3), 3: Int64(2), 1: Int64(1)]
+        let expected = [UInt8]("a501010302200321042205".hexadecimal)
+        
+        // Repeat to guard against the arbitrary iteration order of dictionaries.
+        for _ in 0..<50 {
+            XCTAssertEqual(CBORWriter().putIntKeyMap(values).getResult(), expected)
+        }
+    }
+    
+    func testStringKeyMapCanonicalOrder() {
+        // Shorter keys sort first, then bytewise: fmt, attStmt, authData.
+        let values: [String: Any] = ["authData": Int64(3), "attStmt": Int64(2), "fmt": Int64(1)]
+        let expected = [UInt8]("a3".hexadecimal)
+            + CBORWriter().putString("fmt").putNumber(1).getResult()
+            + CBORWriter().putString("attStmt").putNumber(2).getResult()
+            + CBORWriter().putString("authData").putNumber(3).getResult()
+        
+        for _ in 0..<50 {
+            XCTAssertEqual(CBORWriter().putStringKeyMap(values).getResult(), expected)
+        }
+    }
+    
+    func testNestedStringKeyMapCanonicalOrder() {
+        let values: [String: Any] = ["b": ["z": Int64(1), "y": Int64(2)] as [String: Any], "a": Int64(0)]
+        // a2 | "a":0 | "b": a2 "y":2 "z":1
+        let expected = [UInt8]("a26161006162a2617902617a01".hexadecimal)
+        
+        for _ in 0..<50 {
+            XCTAssertEqual(CBORWriter().putStringKeyMap(values).getResult(), expected)
+        }
+    }
+    
+    func testCOSEKeyEC2CanonicalOrder() {
+        let x = [UInt8](repeating: 1, count: 32)
+        let y = [UInt8](repeating: 2, count: 32)
+        let key = COSEKeyEC2(alg: -7, crv: 1, xCoord: x, yCoord: y)
+        
+        // map(5) { 1: 2, 3: -7, -1: 1, -2: x, -3: y }
+        let expectedPrefix = [UInt8]("a5010203262001215820".hexadecimal)
+        XCTAssertEqual(Array(key.bytes.prefix(expectedPrefix.count)), expectedPrefix)
+    }
+    
+    func testCOSEKeyAKPCanonicalOrder() {
+        let key = COSEKeyAKP(alg: COSEAlgorithmIdentifier.mldsa65.rawValue, pub: [0xAA, 0xBB])
+        
+        // map(3) { 1: 7, 3: -49, -1: h'AABB' }
+        XCTAssertEqual(key.bytes, [UInt8]("a301070338302042aabb".hexadecimal))
+    }
+    
     func testMap() {
         let val1: [String: String] = [:]
         let bytes1 = [UInt8]("a0".hexadecimal)

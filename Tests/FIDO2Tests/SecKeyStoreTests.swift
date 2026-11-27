@@ -74,4 +74,67 @@ final class SecKeyStoreTests: XCTestCase {
         let result = store.read(account, context: LAContext())
         XCTAssertNil(result)
     }
+
+    // MARK: - 4. Crypto Agility
+
+    func testAlgorithmEncodeDecodeRoundTrip() {
+        let algorithms: [COSEAlgorithmIdentifier] = [.es256, .mldsa65, .mldsa87]
+        for algorithm in algorithms {
+            let data = SecKeyStore.encode(algorithm)
+            XCTAssertEqual(SecKeyStore.decode(data), algorithm)
+        }
+    }
+
+    func testAlgorithmDecode_LegacyKeyDefaultsToES256() {
+        XCTAssertEqual(SecKeyStore.decode(nil), .es256)
+    }
+
+    func testAlgorithmDecode_InvalidData() {
+        XCTAssertNil(SecKeyStore.decode(Data("not-a-number".utf8)))
+        XCTAssertNil(SecKeyStore.decode(Data("-99".utf8)))
+    }
+
+    func testGenerate_UnsupportedAlgorithmThrows() {
+        let store = SecKeyStore(serviceName: service)
+        XCTAssertThrowsError(try store.generate(algorithm: .rs256, context: LAContext()))
+    }
+
+    // MARK: - 5. Algorithm Selection
+
+    func testIsSupported() {
+        XCTAssertTrue(SecKeyStore.isSupported(.es256))
+        XCTAssertFalse(SecKeyStore.isSupported(.rs256))
+        XCTAssertFalse(SecKeyStore.isSupported(.ps256))
+    }
+
+    func testSelectAlgorithm_EmptyDefaultsToES256() {
+        XCTAssertEqual(SecKeyStore.selectAlgorithm(from: []), .es256)
+    }
+
+    func testSelectAlgorithm_FirstSupportedInOrder() {
+        // RS256 and PS256 are unsupported so are skipped, ES256 is the first supported.
+        let parameters = [PublicKeyCredentialParameters(alg: .rs256),
+                          PublicKeyCredentialParameters(alg: .ps256),
+                          PublicKeyCredentialParameters(alg: .es256)]
+        XCTAssertEqual(SecKeyStore.selectAlgorithm(from: parameters), .es256)
+    }
+
+    func testSelectAlgorithm_HonoursPreferenceOrder() {
+        let parameters = [PublicKeyCredentialParameters(alg: .es256),
+                          PublicKeyCredentialParameters(alg: .mldsa65)]
+        XCTAssertEqual(SecKeyStore.selectAlgorithm(from: parameters), .es256)
+        
+        if #available(iOS 26.0, macCatalyst 26.0, *) {
+            let reversed = [PublicKeyCredentialParameters(alg: .mldsa87),
+                            PublicKeyCredentialParameters(alg: .mldsa65),
+                            PublicKeyCredentialParameters(alg: .es256)]
+            XCTAssertEqual(SecKeyStore.selectAlgorithm(from: reversed), .mldsa87)
+        }
+    }
+
+    func testSelectAlgorithm_NoneSupported() {
+        let parameters = [PublicKeyCredentialParameters(alg: .rs256),
+                          PublicKeyCredentialParameters(alg: .ps256)]
+        XCTAssertNil(SecKeyStore.selectAlgorithm(from: parameters))
+    }
 }

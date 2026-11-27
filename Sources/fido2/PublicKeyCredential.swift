@@ -407,6 +407,12 @@ public enum COSEAlgorithmIdentifier: Int, Codable {
     
     /// RSASSA-PSS with SHA-256
     case ps256 = -37
+        
+    /// ML-DSA-65
+    case mldsa65 = -49
+    
+    /// ML-DSA-87
+    case mldsa87 = -50
     
     /// Gets the COSE value for the algorithm used in the encryption of the credential.
     /// - Parameter value: A value to match the algorithm identifier.
@@ -429,6 +435,10 @@ public enum COSEAlgorithmIdentifier: Int, Codable {
             return self.es512
         case self.ps256.rawValue:
             return self.ps256
+        case self.mldsa65.rawValue:
+            return self.mldsa65
+        case self.mldsa87.rawValue:
+            return self.mldsa87
         default:
             return nil
         }

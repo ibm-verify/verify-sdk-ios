@@ -61,6 +61,20 @@ class COSETests: XCTestCase {
         // Then
         XCTAssertNotNil(result.toBytes())
     }
+
+    func testCOSEKeyAKPBytes() throws {
+        // Given
+        let pub = [UInt8](repeating: 0xAB, count: 1952)
+
+        // When
+        let result = COSEKeyAKP(alg: COSEAlgorithmIdentifier.mldsa65.rawValue, pub: pub)
+
+        // Then: map(3), kty(1)=7, alg(3)=-49, pub(-1)=bstr
+        let bytes = result.bytes
+        XCTAssertEqual(bytes.first, 0xA3)
+        XCTAssertEqual(bytes.count, result.toBytes().count)
+        XCTAssertNotNil(Data(bytes).range(of: Data(pub)))
+    }
 }
 
 extension String {

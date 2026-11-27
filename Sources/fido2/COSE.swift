@@ -12,6 +12,7 @@ internal struct COSEKeyFieldType {
     static let yCoord: Int = -3
     static let n: Int = -1
     static let e: Int = -2
+    static let pub: Int = -1
 }
 
 internal struct COSEKeyCurveType {
@@ -27,6 +28,8 @@ internal struct COSEKeyCurveType {
 internal struct COSEKeyType {
     static let ec2: UInt8 = 2
     static let rsa: UInt8 = 3
+    /// Algorithm Key Pair, used by ML-DSA. See draft-ietf-cose-dilithium.
+    static let akp: UInt8 = 7
 }
 
 internal protocol COSEKey {
@@ -61,6 +64,27 @@ internal struct COSEKeyEC2: COSEKey {
         dic.updateValue(Int64(self.crv), forKey: COSEKeyFieldType.crv)
         dic.updateValue(self.xCoord, forKey: COSEKeyFieldType.xCoord)
         dic.updateValue(self.yCoord, forKey: COSEKeyFieldType.yCoord)
+
+        return CBORWriter()
+            .putIntKeyMap(dic)
+            .getResult()
+    }
+}
+
+/// A COSE_Key for an algorithm key pair (AKP), as used by the ML-DSA algorithms.
+internal struct COSEKeyAKP: COSEKey {
+    var alg: Int
+    var pub: [UInt8] // The raw public key.
+
+    var bytes: [UInt8] {
+        return toBytes()
+    }
+    
+    func toBytes() -> [UInt8] {
+        var dic = [Int: Any]()
+        dic.updateValue(Int64(COSEKeyType.akp), forKey: COSEKeyFieldType.kty)
+        dic.updateValue(Int64(self.alg), forKey: COSEKeyFieldType.alg)
+        dic.updateValue(self.pub, forKey: COSEKeyFieldType.pub)
 
         return CBORWriter()
             .putIntKeyMap(dic)
